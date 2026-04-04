@@ -4,5 +4,30 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.35);
+  color: #f8fafc;
+}
+
+@keyframes loss-text-glow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 12px rgba(255, 237, 213, 0.2),
+      0 0 26px rgba(251, 146, 60, 0.12);
+  }
+  50% {
+    text-shadow:
+      0 0 18px rgba(255, 237, 213, 0.38),
+      0 0 36px rgba(251, 146, 60, 0.22);
+  }
+}
+
+@layer utilities {
+  .animate-loss-text-glow {
+    animation: loss-text-glow 2.8s ease-in-out infinite;
+  }
 }
