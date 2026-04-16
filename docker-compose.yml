@@ -1,0 +1,53 @@
+name: riglab-ai
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${DB_HOST_PORT}:5432"
+    volumes:
+      - riglab_ai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 8000
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_HOST_PORT}:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_BACKEND_PROXY_TARGET: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_HOST_PORT}:5173"
+    volumes:
+      - ./frontend:/app
+      - riglab_ai_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+
+volumes:
+  riglab_ai_pgdata:
+  riglab_ai_node_modules:
