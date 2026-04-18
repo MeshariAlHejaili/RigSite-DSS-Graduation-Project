@@ -75,3 +75,4 @@ coverage/
 # Misc
 *.bak
 .cache/
+/backend/reports/generated
