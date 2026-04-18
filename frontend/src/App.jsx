@@ -9,6 +9,7 @@ import PressureChart from './components/PressureChart.jsx'
 import ReportControls from './components/ReportControls.jsx'
 import SimulatorControls from './components/SimulatorControls.jsx'
 import StateBadge from './components/StateBadge.jsx'
+import AngleTestUpload from './components/AngleTestUpload.jsx'
 
 const BUFFER_SIZE = 60
 
@@ -61,6 +62,7 @@ export default function App() {
 
         <AngleChart data={buffer} />
         <DataTable data={lastTwentyRecords} />
+        <AngleTestUpload />
         <ReportControls />
         <SimulatorControls />
       </main>
