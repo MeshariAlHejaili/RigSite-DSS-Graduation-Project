@@ -35,13 +35,11 @@ export default function StateBadge({ data }) {
 
   const config = STATE_CONFIG[data.state] ?? STATE_CONFIG.SENSOR_FAULT
   const title = typeof config.text === 'function' ? config.text(data) : config.text
-  const confidence = data.decision_confidence != null ? `${(data.decision_confidence * 100).toFixed(0)}%` : '--'
-
   return (
     <section className="state-badge" style={{ background: config.background }}>
       <span className="state-title">{title}</span>
       <span className="state-subtitle">
-        Last update: {formatTime(data.processed_at)} | Confidence: {confidence} | Sensor status: {data.sensor_status}
+        Last update: {formatTime(data.processed_at)} | Sensor status: {data.sensor_status}
       </span>
     </section>
   )

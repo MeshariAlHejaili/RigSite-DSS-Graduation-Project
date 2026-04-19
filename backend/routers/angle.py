@@ -52,10 +52,9 @@ async def detect_angle_endpoint(image: UploadFile = File(...)) -> dict:
     Lightweight endpoint for testing — no DB write, no broadcast.
     """
     image_bytes = await image.read()
-    angle, confidence = angle_detector.detect_angle(image_bytes)
+    angle, _ = angle_detector.detect_angle(image_bytes)
     return {
         "gate_angle": angle,
-        "angle_confidence": confidence,
         "detected": angle is not None,
         "calibrated": angle_detector.is_calibrated(),
     }
@@ -72,7 +71,7 @@ async def ingest_frame(
 ) -> dict:
     """Full ingest: image + sensor readings → angle detection → pipeline → DB + broadcast."""
     image_bytes = await image.read()
-    angle, confidence = angle_detector.detect_angle(image_bytes)
+    angle, _ = angle_detector.detect_angle(image_bytes)
     camera_ok = angle is not None
 
     raw: dict = {
@@ -81,7 +80,6 @@ async def ingest_frame(
         "pressure2": pressure2,
         "flow": flow,
         "gate_angle": angle,
-        "angle_confidence": confidence,
         "device_health": {
             "pressure_sensor_ok": pressure_sensor_ok,
             "flow_sensor_ok": flow_sensor_ok,
@@ -97,9 +95,8 @@ async def ingest_frame(
 
     await persist_and_broadcast(state)
     log.info(
-        "ingest_frame angle=%.2f conf=%.4f state=%s calibrated=%s",
+        "ingest_frame angle=%.2f state=%s calibrated=%s",
         angle if angle is not None else -1.0,
-        confidence,
         state.get("state"),
         angle_detector.is_calibrated(),
     )

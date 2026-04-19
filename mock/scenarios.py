@@ -24,7 +24,6 @@ def _base_payload(
     flow: float,
     pressure1: float,
     pressure2: float,
-    angle_confidence: float,
     device_health: dict,
 ) -> dict:
     return {
@@ -33,7 +32,6 @@ def _base_payload(
         "pressure2": pressure2,
         "flow": flow,
         "gate_angle": gate_angle,
-        "angle_confidence": _clamp(angle_confidence, 0.0, 1.0),
         "device_health": device_health,
     }
 
@@ -49,7 +47,6 @@ def normal(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.92 + _noise(0.03),
         device_health={"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": True},
     )
 
@@ -65,7 +62,6 @@ def kick(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.91 + _noise(0.02),
         device_health={"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": True},
     )
 
@@ -81,7 +77,6 @@ def loss(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.89 + _noise(0.02),
         device_health={"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": True},
     )
 
@@ -98,7 +93,6 @@ def drift(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.91 + _noise(0.03),
         device_health={"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": True},
     )
 
@@ -112,6 +106,5 @@ def camera_fault(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.0,
         device_health={"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": False},
     )

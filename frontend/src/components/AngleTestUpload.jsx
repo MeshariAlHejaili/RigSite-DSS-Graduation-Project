@@ -262,12 +262,6 @@ export default function AngleTestUpload() {
                 <span className="angle-result-label">Gate Angle</span>
                 <span className="angle-result-value">{result.gate_angle?.toFixed(1)}°</span>
               </div>
-              <div className="angle-result-row">
-                <span className="angle-result-label">Confidence</span>
-                <span className="angle-result-value">
-                  {((result.angle_confidence ?? 0) * 100).toFixed(1)}%
-                </span>
-              </div>
               {result.mode === 'ingest' && (
                 <div className="angle-result-row">
                   <span className="angle-result-label">Pipeline State</span>

@@ -24,7 +24,6 @@ def _base_payload(
     flow: float,
     pressure1: float,
     pressure2: float,
-    angle_confidence: float,
 ) -> dict:
     return {
         "timestamp": time.time(),
@@ -32,7 +31,6 @@ def _base_payload(
         "pressure2": pressure2,
         "flow": flow,
         "gate_angle": gate_angle,
-        "angle_confidence": _clamp(angle_confidence, 0.0, 1.0),
         "device_health": {"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": True},
     }
 
@@ -48,7 +46,6 @@ def normal(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.92 + _noise(0.03),
     )
 
 
@@ -63,7 +60,6 @@ def kick(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.91 + _noise(0.02),
     )
 
 
@@ -78,5 +74,4 @@ def loss(sample_index: int) -> dict:
         flow=flow,
         pressure1=pressure1,
         pressure2=pressure2,
-        angle_confidence=0.89 + _noise(0.02),
     )

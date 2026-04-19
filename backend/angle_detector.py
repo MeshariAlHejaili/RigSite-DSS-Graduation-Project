@@ -205,7 +205,7 @@ def _detect_impl(image_bytes: bytes) -> tuple[float | None, float]:
         angle_deg = math.degrees(math.acos(cos_val))
 
     angle_deg = round(max(0.0, min(90.0, angle_deg)), 2)
-    log.debug("angle=%.2f deg  confidence=%.4f  calibrated=%s", angle_deg, confidence, _R_zero is not None)
+    log.debug("angle=%.2f deg  calibrated=%s", angle_deg, _R_zero is not None)
     return angle_deg, confidence
 
 

@@ -30,7 +30,6 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_startup() -> None:
     await database.init_db()
-    await simulator.start()
 
 
 @app.on_event("shutdown")

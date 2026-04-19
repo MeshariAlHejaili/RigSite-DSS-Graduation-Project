@@ -18,7 +18,6 @@ class RawPayload:
     pressure2: float
     flow: float
     gate_angle: Optional[float]
-    angle_confidence: float
     device_health: dict
 
 
@@ -30,7 +29,6 @@ class ProcessedState:
     pressure2: float
     flow: float
     gate_angle: Optional[float]
-    angle_confidence: float
     device_health: dict
     pressure_diff: float
     expected_flow: float

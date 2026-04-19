@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS telemetry (
     pressure2        FLOAT NOT NULL,
     flow             FLOAT NOT NULL,
     gate_angle       FLOAT,
-    angle_confidence FLOAT,
     pressure_diff    FLOAT NOT NULL,
     expected_flow    FLOAT NOT NULL,
     flow_deviation   FLOAT NOT NULL,

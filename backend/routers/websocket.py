@@ -37,17 +37,16 @@ async def _db_write(state: dict) -> None:
         await conn.execute(
             """
             INSERT INTO telemetry (
-                timestamp, pressure1, pressure2, flow, gate_angle, angle_confidence,
+                timestamp, pressure1, pressure2, flow, gate_angle,
                 pressure_diff, expected_flow, flow_deviation, state, decision_conf,
                 sensor_status, device_health
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """,
             timestamp,
             float(state["pressure1"]),
             float(state["pressure2"]),
             float(state["flow"]),
             float(state["gate_angle"]) if state.get("gate_angle") is not None else None,
-            float(state.get("angle_confidence") or 0.0),
             float(state["pressure_diff"]),
             float(state["expected_flow"]),
             float(state["flow_deviation_pct"]),

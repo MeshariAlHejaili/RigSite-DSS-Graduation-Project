@@ -17,7 +17,7 @@ log = logging.getLogger("riglab.simulator")
 
 class InternalSimulator:
     def __init__(self) -> None:
-        self.enabled = True
+        self.enabled = False
         self.mode: SimulatorMode = "normal"
         self.interval_seconds = 1.0
         self._task: asyncio.Task | None = None
@@ -41,12 +41,22 @@ class InternalSimulator:
         log.info("internal simulator mode changed to %s", mode)
         return self.get_state()
 
+    async def set_enabled(self, enabled: bool) -> dict:
+        if enabled:
+            await self.start()
+        else:
+            await self.stop()
+        return self.get_state()
+
     async def start(self) -> None:
+        self.enabled = True
         if self._task and not self._task.done():
             return
         self._task = asyncio.create_task(self._run(), name="riglab-internal-simulator")
+        log.info("internal simulator started")
 
     async def stop(self) -> None:
+        self.enabled = False
         if self._task is None:
             return
         self._task.cancel()
@@ -55,6 +65,7 @@ class InternalSimulator:
         except asyncio.CancelledError:
             pass
         self._task = None
+        log.info("internal simulator stopped")
 
     async def _run(self) -> None:
         while True:
