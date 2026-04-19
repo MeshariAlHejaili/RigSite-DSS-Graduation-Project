@@ -26,6 +26,14 @@ body {
   box-shadow: 0 10px 24px rgba(31, 56, 100, 0.18);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .brand-block h1 {
   margin: 0;
   font-size: 1.75rem;
@@ -64,6 +72,29 @@ body {
 .connection-count {
   opacity: 0.82;
   font-weight: 500;
+}
+
+.header-nav-button {
+  border: none;
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: #ffffff;
+  color: #1f3864;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: 0 8px 20px rgba(11, 26, 52, 0.2);
+}
+
+.header-nav-button:hover {
+  transform: translateY(-1px);
+  background: #e7eef8;
+}
+
+.header-nav-button:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }
 
 .app-main {
@@ -132,6 +163,12 @@ body {
 
 .table-card {
   padding-bottom: 18px;
+}
+
+.table-subtitle {
+  margin: -8px 0 14px;
+  color: #475569;
+  font-size: 0.9rem;
 }
 
 .report-card {
@@ -266,8 +303,123 @@ body {
   font-size: 0.84rem;
 }
 
+.data-table-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: "Consolas", "SFMono-Regular", Menlo, monospace;
+}
+
+.data-table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.data-table-empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  background: #f8fafc;
+}
+
 .data-table tbody tr:hover {
   filter: brightness(0.98);
+}
+
+.raw-data-hero {
+  padding-bottom: 18px;
+}
+
+.raw-data-description {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 0.94rem;
+  max-width: 80ch;
+}
+
+.raw-data-meta {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.raw-data-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: #dbe5f1;
+  color: #1f3864;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.raw-data-filters {
+  padding-bottom: 18px;
+}
+
+.raw-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.raw-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.raw-filter-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  color: #1f2937;
+  background: #ffffff;
+}
+
+.raw-filter-input:focus {
+  outline: none;
+  border-color: #1f3864;
+  box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.16);
+}
+
+.raw-filter-actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.raw-filter-hint {
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.raw-filter-reset {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #1f3864;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.raw-filter-reset:hover {
+  transform: translateY(-1px);
+  background: #162c50;
 }
 
 /* ── Angle Photo Test ───────────────────────────────────────────── */
@@ -471,6 +623,15 @@ body {
     align-items: flex-start;
   }
 
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .raw-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .charts-row {
     grid-template-columns: 1fr;
   }
@@ -487,5 +648,9 @@ body {
 
   .state-title {
     font-size: 1.25rem;
+  }
+
+  .raw-filter-grid {
+    grid-template-columns: 1fr;
   }
 }

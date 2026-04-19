@@ -5,6 +5,19 @@ const STATE_COLORS = {
   SENSOR_FAULT: 'rgba(97, 97, 97, 0.18)',
 }
 
+const COLUMNS = [
+  { key: 'time', label: 'Time', numeric: false },
+  { key: 'pressure1', label: 'P1', numeric: true },
+  { key: 'pressure2', label: 'P2', numeric: true },
+  { key: 'pressure_diff', label: 'Delta P', numeric: true },
+  { key: 'flow', label: 'Flow', numeric: true },
+  { key: 'expected_flow', label: 'Expected', numeric: true },
+  { key: 'flow_deviation_pct', label: 'Deviation%', numeric: true },
+  { key: 'gate_angle', label: 'Angle', numeric: true },
+  { key: 'state', label: 'State', numeric: false },
+  { key: 'sensor_status', label: 'Sensor Status', numeric: false },
+]
+
 function formatNumber(value) {
   return value == null ? '--' : Number(value).toFixed(2)
 }
@@ -20,41 +33,58 @@ function formatTime(row) {
   return new Date(value).toLocaleTimeString()
 }
 
-export default function DataTable({ data }) {
+function getCellValue(row, key) {
+  if (key === 'time') {
+    return formatTime(row)
+  }
+  if (key === 'state' || key === 'sensor_status') {
+    return row[key] ?? '--'
+  }
+  return formatNumber(row[key])
+}
+
+export default function DataTable({
+  data,
+  title = 'Raw Data Table',
+  subtitle = '',
+  emptyMessage = 'No records available yet.',
+  stickyHeader = false,
+}) {
+  const hasData = data.length > 0
+
   return (
     <section className="chart-card table-card">
-      <h2>Raw Data Table</h2>
+      <h2>{title}</h2>
+      {subtitle && <p className="table-subtitle">{subtitle}</p>}
       <div className="table-scroll">
-        <table className="data-table">
+        <table className={`data-table ${stickyHeader ? 'data-table-sticky' : ''}`}>
           <thead>
             <tr>
-              <th>Time</th>
-              <th>P1</th>
-              <th>P2</th>
-              <th>Delta P</th>
-              <th>Flow</th>
-              <th>Expected</th>
-              <th>Deviation%</th>
-              <th>Angle</th>
-              <th>State</th>
-              <th>Sensor Status</th>
+              {COLUMNS.map((column) => (
+                <th key={column.key} className={column.numeric ? 'data-table-number' : ''}>
+                  {column.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {data.map((row, index) => (
-              <tr key={`${row.timestamp}-${index}`} style={{ background: STATE_COLORS[row.state] ?? 'transparent' }}>
-                <td>{formatTime(row)}</td>
-                <td>{formatNumber(row.pressure1)}</td>
-                <td>{formatNumber(row.pressure2)}</td>
-                <td>{formatNumber(row.pressure_diff)}</td>
-                <td>{formatNumber(row.flow)}</td>
-                <td>{formatNumber(row.expected_flow)}</td>
-                <td>{formatNumber(row.flow_deviation_pct)}</td>
-                <td>{formatNumber(row.gate_angle)}</td>
-                <td>{row.state}</td>
-                <td>{row.sensor_status}</td>
+            {hasData ? (
+              data.map((row, index) => (
+                <tr key={`${row.timestamp}-${index}`} style={{ background: STATE_COLORS[row.state] ?? 'transparent' }}>
+                  {COLUMNS.map((column) => (
+                    <td key={`${column.key}-${index}`} className={column.numeric ? 'data-table-number' : ''}>
+                      {getCellValue(row, column.key)}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="data-table-empty" colSpan={COLUMNS.length}>
+                  {emptyMessage}
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
