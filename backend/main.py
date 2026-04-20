@@ -1,11 +1,23 @@
-"""FastAPI app entry point."""
+"""FastAPI application entry point and dependency-injection wiring.
+
+Startup sequence:
+  1. Init database pool
+  2. Construct InMemoryEventBus
+  3. Register DatabaseWriter and WebSocketBroadcaster as subscribers
+  4. Store bus, broadcaster, and SimulatorController on app.state
+     so routers and WebSocket handlers can resolve them without imports
+
+All cross-layer wiring happens here and only here.
+"""
 import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import database
-from simulator import simulator
+from event_bus import InMemoryEventBus
+from simulator import SimulatorController
+from subscribers import DatabaseWriter, WebSocketBroadcaster
 from routers import websocket as ws_router
 from routers import history as history_router
 from routers import config as config_router
@@ -15,9 +27,8 @@ from routers import angle as angle_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-app = FastAPI(title="RigLab-AI Backend", version="1.0")
+app = FastAPI(title="RigLab-AI Backend", version="2.0")
 
-# CORS: allow Vite dev server (5173) and any origin during dev
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,17 +42,26 @@ app.add_middleware(
 async def on_startup() -> None:
     await database.init_db()
 
+    bus = InMemoryEventBus()
+    db_writer = DatabaseWriter()
+    broadcaster = WebSocketBroadcaster()
+
+    bus.subscribe(db_writer.handle)
+    bus.subscribe(broadcaster.handle)
+
+    app.state.bus = bus
+    app.state.broadcaster = broadcaster
+    app.state.simulator = SimulatorController()
+
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
-    await simulator.stop()
+    sim: SimulatorController = app.state.simulator
+    await sim._stop()
     await database.close_db()
 
 
-# WebSocket routes are mounted without prefix
 app.include_router(ws_router.router)
-
-# REST routes under /api/v1
 app.include_router(history_router.router, prefix="/api/v1")
 app.include_router(config_router.router, prefix="/api/v1")
 app.include_router(reports_router.router, prefix="/api/v1")
@@ -52,9 +72,9 @@ app.include_router(angle_router.router, prefix="/api/v1")
 @app.get("/api/v1/health")
 async def health() -> dict:
     db_ok = await database.is_connected()
+    broadcaster: WebSocketBroadcaster = app.state.broadcaster
     return {
         "status": "ok",
         "db_connected": db_ok,
-        "active_ingest_connections": len(ws_router.ingest_connections),
-        "active_live_connections": len(ws_router.live_connections),
+        "active_live_connections": broadcaster.connection_count,
     }

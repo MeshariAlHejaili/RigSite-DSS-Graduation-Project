@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
-from simulator import simulator
+from simulator import SimulatorController
 
 router = APIRouter()
 
@@ -17,18 +17,22 @@ class SimulatorUpdate(BaseModel):
 
 
 @router.get("/simulator")
-async def get_simulator_state():
-    return simulator.get_state()
+async def get_simulator_state(request: Request):
+    sim: SimulatorController = request.app.state.simulator
+    return sim.get_state()
 
 
 @router.post("/simulator")
-async def update_simulator_state(body: SimulatorUpdate):
+async def update_simulator_state(request: Request, body: SimulatorUpdate):
     if body.mode is None and body.enabled is None:
         raise HTTPException(status_code=400, detail="provide mode and/or enabled")
-    if body.mode is not None and body.mode not in {"normal", "kick", "loss"}:
-        raise HTTPException(status_code=400, detail="invalid simulator mode")
+
+    sim: SimulatorController = request.app.state.simulator
+    bus = request.app.state.bus
+
     if body.mode is not None:
-        simulator.set_mode(body.mode)
+        sim.set_mode(body.mode)
     if body.enabled is not None:
-        await simulator.set_enabled(body.enabled)
-    return simulator.get_state()
+        await sim.set_enabled(body.enabled, bus)
+
+    return sim.get_state()

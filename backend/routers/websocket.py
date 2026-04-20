@@ -1,68 +1,28 @@
+"""WebSocket transport layer — connection management only.
+
+/ws/ingest  — accepts a sensor data producer (Raspberry Pi or any client)
+              and runs it through the IngestionPipeline for the session lifetime.
+/ws/live    — fan-out endpoint; dashboard clients subscribe here to receive
+              real-time ProcessedState broadcasts from the WebSocketBroadcaster.
+
+All processing, persistence, and broadcast logic lives in other layers.
+This router is purely responsible for connection lifecycle.
+"""
 from __future__ import annotations
 
-import datetime
-import json
 import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-import config as cfg
 import database
-import detection_engine
+from data_sources import WebSocketDataSource
 from detection_engine import DetectionEngine
-from processing import process_payload
+from pipeline import IngestionPipeline
+from sensor_processor import SensorProcessor
+from subscribers import WebSocketBroadcaster
 
 router = APIRouter()
 log = logging.getLogger("riglab.ws")
-
-ingest_connections: set[WebSocket] = set()
-live_connections: set[WebSocket] = set()
-ingest_sessions: dict[WebSocket, int] = {}
-
-
-async def _broadcast(data: str) -> None:
-    dead_connections: set[WebSocket] = set()
-    for websocket in list(live_connections):
-        try:
-            await websocket.send_text(data)
-        except Exception:
-            dead_connections.add(websocket)
-    live_connections.difference_update(dead_connections)
-
-
-async def _db_write(state: dict) -> None:
-    pool = database.get_pool()
-    timestamp = datetime.datetime.fromtimestamp(state["timestamp"], tz=datetime.timezone.utc)
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO telemetry (
-                timestamp, pressure1, pressure2, flow, gate_angle,
-                pressure_diff, expected_flow, flow_deviation, state, decision_conf,
-                sensor_status, device_health
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            """,
-            timestamp,
-            float(state["pressure1"]),
-            float(state["pressure2"]),
-            float(state["flow"]),
-            float(state["gate_angle"]) if state.get("gate_angle") is not None else None,
-            float(state["pressure_diff"]),
-            float(state["expected_flow"]),
-            float(state["flow_deviation_pct"]),
-            state["state"],
-            float(state["decision_confidence"]),
-            state["sensor_status"],
-            json.dumps(state.get("device_health", {})),
-        )
-
-
-async def persist_and_broadcast(state: dict) -> None:
-    try:
-        await _db_write(state)
-    except Exception as exc:
-        log.error("DB write failed: %s", exc)
-    await _broadcast(json.dumps(state))
 
 
 async def _create_session() -> int:
@@ -84,49 +44,35 @@ async def _close_session(session_id: int) -> None:
 @router.websocket("/ws/ingest")
 async def ws_ingest(websocket: WebSocket) -> None:
     await websocket.accept()
-    ingest_connections.add(websocket)
-    det_engine = DetectionEngine()
+
+    bus = websocket.app.state.bus
+    detector = SensorProcessor(DetectionEngine())
+    source = WebSocketDataSource(websocket)
+    pipeline = IngestionPipeline(detector=detector, bus=bus)
+
     session_id = await _create_session()
-    ingest_sessions[websocket] = session_id
-    log.info("ingest connected (session=%s total=%d)", session_id, len(ingest_connections))
+    log.info("ingest connected (session=%s)", session_id)
 
     try:
-        while True:
-            raw_text = await websocket.receive_text()
-            try:
-                raw = json.loads(raw_text)
-            except json.JSONDecodeError:
-                log.warning("invalid ingest payload: %s", raw_text)
-                await websocket.send_json({"error": "invalid_payload"})
-                continue
-
-            token = detection_engine.set_active_engine(det_engine)
-            try:
-                state = process_payload(raw, cfg.get_pete_constants(), cfg.get_detection_settings())
-            finally:
-                detection_engine.reset_active_engine(token)
-
-            await persist_and_broadcast(state)
+        await pipeline.run(source)
     except WebSocketDisconnect:
         pass
     finally:
-        ingest_connections.discard(websocket)
-        closed_session_id = ingest_sessions.pop(websocket, None)
-        if closed_session_id is not None:
-            await _close_session(closed_session_id)
-        log.info("ingest disconnected (session=%s total=%d)", closed_session_id, len(ingest_connections))
+        await _close_session(session_id)
+        log.info("ingest disconnected (session=%s)", session_id)
 
 
 @router.websocket("/ws/live")
 async def ws_live(websocket: WebSocket) -> None:
+    broadcaster: WebSocketBroadcaster = websocket.app.state.broadcaster
     await websocket.accept()
-    live_connections.add(websocket)
-    log.info("live connected (total=%d)", len(live_connections))
+    broadcaster.add(websocket)
+    log.info("live connected (total=%d)", broadcaster.connection_count)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         pass
     finally:
-        live_connections.discard(websocket)
-        log.info("live disconnected (total=%d)", len(live_connections))
+        broadcaster.remove(websocket)
+        log.info("live disconnected (total=%d)", broadcaster.connection_count)

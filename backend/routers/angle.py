@@ -1,22 +1,23 @@
 """HTTP endpoints for ArUco-based gate angle detection and full-pipeline image ingest."""
 from __future__ import annotations
 
+import dataclasses
 import logging
 import time
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 
 import angle_detector
-import config as cfg
-import detection_engine
 from detection_engine import DetectionEngine
-from processing import process_payload
-from routers.websocket import persist_and_broadcast
+from schemas import SensorPayload
+from sensor_processor import SensorProcessor
 
 router = APIRouter(prefix="/angle", tags=["angle"])
 log = logging.getLogger("riglab.angle")
 
+# One dedicated engine for the HTTP ingest path (stateful, survives across requests)
 _http_engine = DetectionEngine()
+_http_processor = SensorProcessor(_http_engine)
 
 
 @router.get("/calibrate/status")
@@ -27,12 +28,7 @@ async def calibrate_status() -> dict:
 
 @router.post("/calibrate/zero")
 async def calibrate_zero(image: UploadFile = File(...)) -> dict:
-    """Set the current marker pose as the zero reference (gate fully closed).
-
-    Upload a photo of the gate in the fully-closed position. After this call,
-    detect and ingest endpoints report angles relative to this reference.
-    The calibration is persisted to disk and survives server restarts.
-    """
+    """Set the current marker pose as the zero reference (gate fully closed)."""
     image_bytes = await image.read()
     success, message = angle_detector.calibrate_zero(image_bytes)
     return {"success": success, "message": message}
@@ -47,10 +43,7 @@ async def clear_calibration() -> dict:
 
 @router.post("/detect")
 async def detect_angle_endpoint(image: UploadFile = File(...)) -> dict:
-    """Detect gate angle from an uploaded image.
-
-    Lightweight endpoint for testing — no DB write, no broadcast.
-    """
+    """Detect gate angle from an uploaded image — no DB write, no broadcast."""
     image_bytes = await image.read()
     angle, _ = angle_detector.detect_angle(image_bytes)
     return {
@@ -62,6 +55,7 @@ async def detect_angle_endpoint(image: UploadFile = File(...)) -> dict:
 
 @router.post("/ingest")
 async def ingest_frame(
+    request: Request,
     image: UploadFile = File(...),
     pressure1: float = Form(...),
     pressure2: float = Form(...),
@@ -74,31 +68,27 @@ async def ingest_frame(
     angle, confidence = angle_detector.detect_angle(image_bytes)
     camera_ok = angle is not None
 
-    raw: dict = {
-        "timestamp": time.time(),
-        "pressure1": pressure1,
-        "pressure2": pressure2,
-        "flow": flow,
-        "gate_angle": angle,
-        "angle_confidence": confidence if confidence is not None else 0.0,
-        "device_health": {
+    payload = SensorPayload(
+        timestamp=time.time(),
+        pressure1=pressure1,
+        pressure2=pressure2,
+        flow=flow,
+        gate_angle=angle,
+        angle_confidence=confidence if confidence is not None else 0.0,
+        device_health={
             "pressure_sensor_ok": pressure_sensor_ok,
             "flow_sensor_ok": flow_sensor_ok,
             "camera_ok": camera_ok,
         },
-    }
+    )
 
-    token = detection_engine.set_active_engine(_http_engine)
-    try:
-        state = process_payload(raw, cfg.get_pete_constants(), cfg.get_detection_settings())
-    finally:
-        detection_engine.reset_active_engine(token)
+    state = _http_processor.evaluate(payload)
+    await request.app.state.bus.publish(state)
 
-    await persist_and_broadcast(state)
     log.info(
         "ingest_frame angle=%.2f state=%s calibrated=%s",
         angle if angle is not None else -1.0,
-        state.get("state"),
+        state.state,
         angle_detector.is_calibrated(),
     )
-    return {**state, "calibrated": angle_detector.is_calibrated()}
+    return {**dataclasses.asdict(state), "calibrated": angle_detector.is_calibrated()}

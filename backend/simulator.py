@@ -1,62 +1,63 @@
+"""SimulatorController — manages the lifecycle of the internal simulator.
+
+The simulator is now a thin wrapper around SimulatorDataSource. It holds
+the asyncio task and exposes start/stop/mode controls. It has no knowledge
+of detection logic, the WebSocket router, or the database — it simply
+passes a data source to an IngestionPipeline when enabled.
+
+The event bus is passed in at enable-time (from app.state.bus) so this
+module has zero coupling to the application startup wiring.
+"""
 from __future__ import annotations
 
 import asyncio
 import logging
 from typing import Literal
 
-import detection_engine
-from config import get_detection_settings, get_pete_constants
+from data_sources import SimulatorDataSource
 from detection_engine import DetectionEngine
-from processing import process_payload
-from routers import websocket as websocket_router
-from simulator_scenarios import kick, loss, normal
+from interfaces import IEventBus
+from pipeline import IngestionPipeline
+from sensor_processor import SensorProcessor
 
 SimulatorMode = Literal["normal", "kick", "loss"]
 
 log = logging.getLogger("riglab.simulator")
 
 
-class InternalSimulator:
+class SimulatorController:
     def __init__(self) -> None:
-        self.enabled = False
-        self.mode: SimulatorMode = "normal"
-        self.interval_seconds = 1.0
+        self._source = SimulatorDataSource(mode="normal", interval=1.0)
         self._task: asyncio.Task | None = None
-        self._engine = DetectionEngine()
-        self._sample_index = 0
-        self._scenarios = {
-            "normal": normal,
-            "kick": kick,
-            "loss": loss,
-        }
+        self.enabled = False
 
     def get_state(self) -> dict:
         return {
             "enabled": self.enabled,
-            "mode": self.mode,
-            "interval_seconds": self.interval_seconds,
+            "mode": self._source.mode,
+            "interval_seconds": self._source._interval,
         }
 
     def set_mode(self, mode: SimulatorMode) -> dict:
-        self.mode = mode
-        log.info("internal simulator mode changed to %s", mode)
+        self._source.mode = mode
+        log.info("simulator mode → %s", mode)
         return self.get_state()
 
-    async def set_enabled(self, enabled: bool) -> dict:
+    async def set_enabled(self, enabled: bool, bus: IEventBus) -> dict:
         if enabled:
-            await self.start()
+            await self._start(bus)
         else:
-            await self.stop()
+            await self._stop()
         return self.get_state()
 
-    async def start(self) -> None:
+    async def _start(self, bus: IEventBus) -> None:
         self.enabled = True
         if self._task and not self._task.done():
             return
-        self._task = asyncio.create_task(self._run(), name="riglab-internal-simulator")
-        log.info("internal simulator started")
+        self._task = asyncio.create_task(self._run(bus), name="riglab-simulator")
+        log.info("simulator started (mode=%s)", self._source.mode)
 
-    async def stop(self) -> None:
+    async def _stop(self) -> None:
         self.enabled = False
         if self._task is None:
             return
@@ -66,20 +67,15 @@ class InternalSimulator:
         except asyncio.CancelledError:
             pass
         self._task = None
-        log.info("internal simulator stopped")
+        log.info("simulator stopped")
 
-    async def _run(self) -> None:
-        while True:
-            scenario_fn = self._scenarios[self.mode]
-            raw_payload = scenario_fn(self._sample_index)
-            self._sample_index += 1
-            token = detection_engine.set_active_engine(self._engine)
-            try:
-                state = process_payload(raw_payload, get_pete_constants(), get_detection_settings())
-            finally:
-                detection_engine.reset_active_engine(token)
-            await websocket_router.persist_and_broadcast(state)
-            await asyncio.sleep(self.interval_seconds)
+    async def _run(self, bus: IEventBus) -> None:
+        detector = SensorProcessor(DetectionEngine())
+        pipeline = IngestionPipeline(detector=detector, bus=bus)
+        try:
+            await pipeline.run(self._source)
+        except asyncio.CancelledError:
+            pass
 
 
-simulator = InternalSimulator()
+simulator = SimulatorController()
