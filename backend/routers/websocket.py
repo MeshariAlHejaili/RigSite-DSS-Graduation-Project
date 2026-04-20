@@ -6,10 +6,10 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-import anomaly_engine
 import config as cfg
 import database
-from anomaly_engine import AnomalyEngine
+import detection_engine
+from detection_engine import DetectionEngine
 from processing import process_payload
 
 router = APIRouter()
@@ -85,7 +85,7 @@ async def _close_session(session_id: int) -> None:
 async def ws_ingest(websocket: WebSocket) -> None:
     await websocket.accept()
     ingest_connections.add(websocket)
-    engine = AnomalyEngine()
+    det_engine = DetectionEngine()
     session_id = await _create_session()
     ingest_sessions[websocket] = session_id
     log.info("ingest connected (session=%s total=%d)", session_id, len(ingest_connections))
@@ -100,11 +100,11 @@ async def ws_ingest(websocket: WebSocket) -> None:
                 await websocket.send_json({"error": "invalid_payload"})
                 continue
 
-            token = anomaly_engine.set_active_engine(engine)
+            token = detection_engine.set_active_engine(det_engine)
             try:
-                state = process_payload(raw, cfg.get_pete_constants())
+                state = process_payload(raw, cfg.get_pete_constants(), cfg.get_detection_settings())
             finally:
-                anomaly_engine.reset_active_engine(token)
+                detection_engine.reset_active_engine(token)
 
             await persist_and_broadcast(state)
     except WebSocketDisconnect:

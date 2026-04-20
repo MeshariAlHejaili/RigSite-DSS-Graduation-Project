@@ -7,16 +7,16 @@ import time
 from fastapi import APIRouter, File, Form, UploadFile
 
 import angle_detector
-import anomaly_engine
 import config as cfg
-from anomaly_engine import AnomalyEngine
+import detection_engine
+from detection_engine import DetectionEngine
 from processing import process_payload
 from routers.websocket import persist_and_broadcast
 
 router = APIRouter(prefix="/angle", tags=["angle"])
 log = logging.getLogger("riglab.angle")
 
-_http_engine = AnomalyEngine()
+_http_engine = DetectionEngine()
 
 
 @router.get("/calibrate/status")
@@ -71,7 +71,7 @@ async def ingest_frame(
 ) -> dict:
     """Full ingest: image + sensor readings → angle detection → pipeline → DB + broadcast."""
     image_bytes = await image.read()
-    angle, _ = angle_detector.detect_angle(image_bytes)
+    angle, confidence = angle_detector.detect_angle(image_bytes)
     camera_ok = angle is not None
 
     raw: dict = {
@@ -80,6 +80,7 @@ async def ingest_frame(
         "pressure2": pressure2,
         "flow": flow,
         "gate_angle": angle,
+        "angle_confidence": confidence if confidence is not None else 0.0,
         "device_health": {
             "pressure_sensor_ok": pressure_sensor_ok,
             "flow_sensor_ok": flow_sensor_ok,
@@ -87,11 +88,11 @@ async def ingest_frame(
         },
     }
 
-    token = anomaly_engine.set_active_engine(_http_engine)
+    token = detection_engine.set_active_engine(_http_engine)
     try:
-        state = process_payload(raw, cfg.get_pete_constants())
+        state = process_payload(raw, cfg.get_pete_constants(), cfg.get_detection_settings())
     finally:
-        anomaly_engine.reset_active_engine(token)
+        detection_engine.reset_active_engine(token)
 
     await persist_and_broadcast(state)
     log.info(

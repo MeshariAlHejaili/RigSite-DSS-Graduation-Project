@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import datetime
 
-import anomaly_engine
+import detection_engine
+import engineering
 from config import interpolate_expected_flow
 
 
@@ -40,7 +41,7 @@ def _fault_from_validation(fault_fields: set[str], device_health: dict) -> str:
     return "MULTI_FAULT"
 
 
-def process_payload(raw: dict, pete: dict) -> dict:
+def process_payload(raw: dict, pete: dict, detection_settings: dict) -> dict:
     state = dict(raw)
     state.setdefault(
         "device_health",
@@ -50,6 +51,11 @@ def process_payload(raw: dict, pete: dict) -> dict:
         pressure_diff=None,
         expected_flow=None,
         flow_deviation_pct=None,
+        density=None,
+        angle_deviation=None,
+        density_deviation_pct=None,
+        baseline_angle=None,
+        detection_mode=detection_settings.get("detection_mode", "angle_only"),
         state=None,
         decision_confidence=None,
         sensor_status=None,
@@ -80,55 +86,62 @@ def process_payload(raw: dict, pete: dict) -> dict:
         state["processed_at"] = _now_iso()
         return state
 
+    # --- Engineering calculations (for display; not used in detection) ---
     state["sensor_status"] = _sensor_fault_from_health(state["device_health"])
     state["pressure_diff"] = round(raw["pressure1"] - raw["pressure2"], 4)
     state["expected_flow"] = interpolate_expected_flow(
         raw["gate_angle"],
         flow_baseline=float(pete["flow_baseline"]),
     )
-
     if state["expected_flow"] == 0:
         state["flow_deviation_pct"] = 0.0
     else:
         state["flow_deviation_pct"] = round(
-            ((raw["flow"] - state["expected_flow"]) / state["expected_flow"]) * 100.0,
-            4,
+            ((raw["flow"] - state["expected_flow"]) / state["expected_flow"]) * 100.0, 4
         )
 
-    state["state"] = anomaly_engine.evaluate(
-        state["flow_deviation_pct"],
-        float(pete["anomaly_threshold"]),
-        int(pete["anomaly_window"]),
-    )
+    # --- Density (only computed in angle_density mode) ---
+    mode = detection_settings.get("detection_mode", "angle_only")
+    delta_h = float(detection_settings.get("delta_h", 1.0))
 
-    raw_conf = min(
-        float(raw.get("angle_confidence", 0.0)),
-        1.0 - abs(state["flow_deviation_pct"]) / 100.0,
-    )
-    state["decision_confidence"] = round(max(0.0, min(1.0, raw_conf)), 4)
+    if mode == "angle_density":
+        state["density"] = engineering.calculate_density(state["pressure_diff"], delta_h)
+    else:
+        state["density"] = None
+
+    # --- Detection ---
+    # Sync the per-connection engine to whatever baseline the engineer has set
+    detection_engine.sync_baseline(detection_settings)
+    state["state"] = detection_engine.evaluate(raw["gate_angle"], state["density"], mode)
+    display = detection_engine.get_display_state()
+    state["angle_deviation"] = display["angle_deviation"]
+    state["density_deviation_pct"] = display["density_deviation_pct"]
+    state["baseline_angle"] = display["baseline_angle"]
+
+    state["decision_confidence"] = round(float(raw.get("angle_confidence", 0.0)), 4)
     state["processed_at"] = _now_iso()
-    anomaly_engine.schedule_transition_actions(state)
+    detection_engine.schedule_transition_actions(state)
     return state
 
 
 if __name__ == "__main__":
     import time
 
-    from anomaly_engine import AnomalyEngine, reset_active_engine, set_active_engine
+    from config import get_detection_settings, get_pete_constants
+    from detection_engine import DetectionEngine, reset_active_engine, set_active_engine
 
-    def run_test(label, raws, pete, expect):
-        engine = AnomalyEngine()
+    def run_test(label, raws, expect):
+        engine = DetectionEngine()
         token = set_active_engine(engine)
         try:
             result = None
             for raw_payload in raws:
-                result = process_payload(raw_payload, pete)
+                result = process_payload(raw_payload, get_pete_constants(), get_detection_settings())
             assert result["state"] == expect, f"FAIL {label}: got {result['state']}"
             print(f"PASS {label}")
         finally:
             reset_active_engine(token)
 
-    pete = {"flow_baseline": 10.0, "anomaly_threshold": 0.15, "anomaly_window": 2}
     ts = time.time()
 
     normal_raw = {
@@ -138,46 +151,33 @@ if __name__ == "__main__":
         "flow": 6.5,
         "gate_angle": 60.0,
         "angle_confidence": 0.9,
-        "device_health": {
-            "pressure_sensor_ok": True,
-            "flow_sensor_ok": True,
-            "camera_ok": True,
-        },
+        "device_health": {"pressure_sensor_ok": True, "flow_sensor_ok": True, "camera_ok": True},
     }
-    run_test("normal -> NORMAL", [normal_raw] * 3, pete, "NORMAL")
 
-    kick_raw = {
-        "timestamp": ts,
-        "pressure1": 5.5,
-        "pressure2": 4.0,
-        "flow": 8.5,
-        "gate_angle": 60.0,
-        "angle_confidence": 0.88,
-        "device_health": {
-            "pressure_sensor_ok": True,
-            "flow_sensor_ok": True,
-            "camera_ok": True,
-        },
-    }
-    run_test("kick x2 -> KICK_RISK", [kick_raw] * 2, pete, "KICK_RISK")
+    # First 3 samples establish baseline → always NORMAL
+    run_test("baseline phase -> NORMAL", [normal_raw] * 3, "NORMAL")
 
-    bad_raw = {
-        "timestamp": ts,
-        "pressure1": 5.0,
-        "pressure2": 4.0,
-        "flow": None,
-        "gate_angle": 60.0,
-        "angle_confidence": 0.9,
-        "device_health": {
-            "pressure_sensor_ok": True,
-            "flow_sensor_ok": True,
-            "camera_ok": True,
-        },
-    }
-    engine = AnomalyEngine()
+    # After baseline (3 samples), need 3 more above threshold to trigger KICK_RISK
+    kick_raw = {**normal_raw, "gate_angle": 70.0}  # 10° above baseline of 60°
+    run_test(
+        "3 baseline + 3 kick -> KICK_RISK",
+        [normal_raw] * 3 + [kick_raw] * 3,
+        "KICK_RISK",
+    )
+
+    loss_raw = {**normal_raw, "gate_angle": 50.0}  # 10° below baseline of 60°
+    run_test(
+        "3 baseline + 3 loss -> LOSS_RISK",
+        [normal_raw] * 3 + [loss_raw] * 3,
+        "LOSS_RISK",
+    )
+
+    # Missing flow → SENSOR_FAULT
+    bad_raw = {**normal_raw, "flow": None}
+    engine = DetectionEngine()
     token = set_active_engine(engine)
     try:
-        result = process_payload(bad_raw, pete)
+        result = process_payload(bad_raw, get_pete_constants(), get_detection_settings())
         assert result["state"] == "SENSOR_FAULT", f"FAIL: got {result['state']}"
         print("PASS missing flow -> SENSOR_FAULT")
     finally:

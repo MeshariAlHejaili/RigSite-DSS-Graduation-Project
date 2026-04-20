@@ -4,9 +4,11 @@ import socket from './api/socket.js'
 import AngleChart from './components/AngleChart.jsx'
 import ConnectionStatus from './components/ConnectionStatus.jsx'
 import DataTable from './components/DataTable.jsx'
+import DetectionSummary from './components/DetectionSummary.jsx'
 import FlowChart from './components/FlowChart.jsx'
 import PressureChart from './components/PressureChart.jsx'
 import ReportControls from './components/ReportControls.jsx'
+import SettingsPage from './components/SettingsPage.jsx'
 import SimulatorControls from './components/SimulatorControls.jsx'
 import StateBadge from './components/StateBadge.jsx'
 import AngleTestUpload from './components/AngleTestUpload.jsx'
@@ -14,10 +16,13 @@ import AngleTestUpload from './components/AngleTestUpload.jsx'
 const BUFFER_SIZE = 60
 const DASHBOARD_ROUTE = 'dashboard'
 const RAW_DATA_ROUTE = 'raw-data'
+const SETTINGS_ROUTE = 'settings'
 const FILTER_ALL = 'ALL'
 
 function getRouteFromHash() {
-  return window.location.hash === '#/raw-data' ? RAW_DATA_ROUTE : DASHBOARD_ROUTE
+  if (window.location.hash === '#/raw-data') return RAW_DATA_ROUTE
+  if (window.location.hash === '#/settings') return SETTINGS_ROUTE
+  return DASHBOARD_ROUTE
 }
 
 function formatLastUpdate(value) {
@@ -74,6 +79,9 @@ export default function App() {
   const lastTwentyRecords = buffer.slice(-20).reverse()
   const rawDataRows = [...buffer].reverse()
   const isRawDataPage = route === RAW_DATA_ROUTE
+  const isSettingsPage = route === SETTINGS_ROUTE
+  const isDashboard = route === DASHBOARD_ROUTE
+
   const stateOptions = useMemo(() => {
     const values = [...new Set(rawDataRows.map((row) => row.state).filter(Boolean))]
     return [FILTER_ALL, ...values]
@@ -138,6 +146,15 @@ export default function App() {
         </div>
         <div className="header-actions">
           <ConnectionStatus status={status} count={sessionCount} />
+          <button
+            type="button"
+            className={`header-nav-button ${isSettingsPage ? 'header-nav-button-active' : ''}`}
+            onClick={() => {
+              window.location.hash = isSettingsPage ? '' : '/settings'
+            }}
+          >
+            {isSettingsPage ? 'Back To Dashboard' : 'Settings'}
+          </button>
           <button type="button" className="header-nav-button" onClick={handleTogglePage}>
             {isRawDataPage ? 'Back To Dashboard' : 'Open Raw Data'}
           </button>
@@ -145,7 +162,9 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        {isRawDataPage ? (
+        {isSettingsPage ? (
+          <SettingsPage />
+        ) : isRawDataPage ? (
           <>
             <section className="chart-card raw-data-hero">
               <div>
@@ -242,6 +261,7 @@ export default function App() {
             </section>
 
             <AngleChart data={buffer} />
+            <DetectionSummary buffer={buffer} />
             <AngleTestUpload />
             <ReportControls />
             <SimulatorControls />

@@ -107,6 +107,45 @@ def interpolate_expected_flow(gate_angle: float, flow_baseline: float | None = N
     return round(interpolated, 4)
 
 
+DETECTION_MODE = os.getenv("DETECTION_MODE", "angle_only")
+DELTA_H = float(os.getenv("DELTA_H", "1.0"))
+
+DETECTION_SETTINGS: dict = {
+    "detection_mode": DETECTION_MODE,
+    "delta_h": DELTA_H,
+    # Baseline — None until the engineer sets it from the UI
+    "baseline_angle": None,
+    "baseline_density": None,
+    "baseline_version": 0,  # incremented each time the baseline is changed
+}
+
+
+def get_detection_settings() -> dict:
+    return dict(DETECTION_SETTINGS)
+
+
+def set_detection_setting(key: str, value: object) -> None:
+    if key == "detection_mode":
+        if value not in ("angle_only", "angle_density"):
+            raise ValueError(f"Invalid detection_mode: {value!r}")
+        DETECTION_SETTINGS["detection_mode"] = value
+    elif key == "delta_h":
+        DETECTION_SETTINGS["delta_h"] = max(0.001, float(value))  # type: ignore[arg-type]
+    else:
+        raise ValueError(f"Unknown detection setting: {key!r}")
+
+
+def set_detection_baseline(
+    baseline_angle: float, baseline_density: float | None = None
+) -> None:
+    """Fix the detection baseline. Increments baseline_version so all engines resync."""
+    DETECTION_SETTINGS["baseline_angle"] = round(float(baseline_angle), 4)
+    DETECTION_SETTINGS["baseline_density"] = (
+        round(float(baseline_density), 4) if baseline_density is not None else None
+    )
+    DETECTION_SETTINGS["baseline_version"] = int(DETECTION_SETTINGS["baseline_version"]) + 1
+
+
 def theoretical_alarm_latency_seconds(
     sample_rate_hz: float | None = None,
     anomaly_window: int | None = None,

@@ -4,8 +4,9 @@ import asyncio
 import logging
 from typing import Literal
 
-from anomaly_engine import AnomalyEngine, reset_active_engine, set_active_engine
-from config import get_pete_constants
+import detection_engine
+from config import get_detection_settings, get_pete_constants
+from detection_engine import DetectionEngine
 from processing import process_payload
 from routers import websocket as websocket_router
 from simulator_scenarios import kick, loss, normal
@@ -21,7 +22,7 @@ class InternalSimulator:
         self.mode: SimulatorMode = "normal"
         self.interval_seconds = 1.0
         self._task: asyncio.Task | None = None
-        self._engine = AnomalyEngine()
+        self._engine = DetectionEngine()
         self._sample_index = 0
         self._scenarios = {
             "normal": normal,
@@ -72,11 +73,11 @@ class InternalSimulator:
             scenario_fn = self._scenarios[self.mode]
             raw_payload = scenario_fn(self._sample_index)
             self._sample_index += 1
-            token = set_active_engine(self._engine)
+            token = detection_engine.set_active_engine(self._engine)
             try:
-                state = process_payload(raw_payload, get_pete_constants())
+                state = process_payload(raw_payload, get_pete_constants(), get_detection_settings())
             finally:
-                reset_active_engine(token)
+                detection_engine.reset_active_engine(token)
             await websocket_router.persist_and_broadcast(state)
             await asyncio.sleep(self.interval_seconds)
 

@@ -1,3 +1,24 @@
+function formatDeviation(value, unit) {
+  if (value == null) return null
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toFixed(1)}${unit}`
+}
+
+function buildKickLossText(prefix, data) {
+  const anglePart = formatDeviation(data.angle_deviation, '°')
+  const densityPart = formatDeviation(data.density_deviation_pct, '%')
+
+  if (data.detection_mode === 'angle_density') {
+    const parts = [
+      anglePart ? `Angle ${anglePart} from baseline` : null,
+      densityPart ? `Density ${densityPart} from baseline` : null,
+    ].filter(Boolean)
+    return parts.length > 0 ? `${prefix} — ${parts.join(', ')}` : prefix
+  }
+
+  return anglePart ? `${prefix} — Angle ${anglePart} from baseline` : prefix
+}
+
 const STATE_CONFIG = {
   NORMAL: {
     background: '#2e7d32',
@@ -5,11 +26,11 @@ const STATE_CONFIG = {
   },
   KICK_RISK: {
     background: '#c62828',
-    text: (data) => `WARNING KICK RISK - Flow High by ${data.flow_deviation_pct.toFixed(1)}%`,
+    text: (data) => buildKickLossText('WARNING KICK RISK', data),
   },
   LOSS_RISK: {
     background: '#ef6c00',
-    text: (data) => `WARNING LOSS RISK - Flow Low by ${Math.abs(data.flow_deviation_pct).toFixed(1)}%`,
+    text: (data) => buildKickLossText('WARNING LOSS RISK', data),
   },
   SENSOR_FAULT: {
     background: '#616161',
