@@ -4,19 +4,25 @@ function formatDeviation(value, unit) {
   return `${sign}${value.toFixed(1)}${unit}`
 }
 
-function buildKickLossText(prefix, data) {
-  const anglePart = formatDeviation(data.angle_deviation, '°')
-  const densityPart = formatDeviation(data.density_deviation_pct, '%')
+function normalizeDetectionMode(mode) {
+  if (mode === 'angle_density') return 'angle_mud_weight'
+  if (mode === 'angle_only' || mode === 'angle_mud_weight') return mode
+  return 'angle_only'
+}
 
-  if (data.detection_mode === 'angle_density') {
+function buildKickLossText(prefix, data) {
+  const anglePart = formatDeviation(data.angle_deviation, ' deg')
+  const mudWeightPart = formatDeviation(data.mud_weight_deviation_pct, '%')
+
+  if (normalizeDetectionMode(data.detection_mode) === 'angle_mud_weight') {
     const parts = [
       anglePart ? `Angle ${anglePart} from baseline` : null,
-      densityPart ? `Density ${densityPart} from baseline` : null,
+      mudWeightPart ? `Mud Weight ${mudWeightPart} from baseline` : null,
     ].filter(Boolean)
-    return parts.length > 0 ? `${prefix} — ${parts.join(', ')}` : prefix
+    return parts.length > 0 ? `${prefix} - ${parts.join(', ')}` : prefix
   }
 
-  return anglePart ? `${prefix} — Angle ${anglePart} from baseline` : prefix
+  return anglePart ? `${prefix} - Angle ${anglePart} from baseline` : prefix
 }
 
 const STATE_CONFIG = {
@@ -45,7 +51,7 @@ function formatTime(value) {
   return new Date(value).toLocaleTimeString()
 }
 
-export default function StateBadge({ data }) {
+export default function StateBadge({ data, showDebugStatus = false }) {
   if (!data) {
     return (
       <section className="state-badge waiting-state">
@@ -56,11 +62,13 @@ export default function StateBadge({ data }) {
 
   const config = STATE_CONFIG[data.state] ?? STATE_CONFIG.SENSOR_FAULT
   const title = typeof config.text === 'function' ? config.text(data) : config.text
+
   return (
     <section className="state-badge" style={{ background: config.background }}>
       <span className="state-title">{title}</span>
       <span className="state-subtitle">
-        Last update: {formatTime(data.processed_at)} | Sensor status: {data.sensor_status}
+        Last update: {formatTime(data.processed_at)}
+        {showDebugStatus ? ` | Sensor status: ${data.sensor_status ?? '--'}` : ''}
       </span>
     </section>
   )

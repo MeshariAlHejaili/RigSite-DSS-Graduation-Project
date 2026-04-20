@@ -2,14 +2,29 @@ import { useEffect, useState } from 'react'
 
 const MODE_LABELS = {
   angle_only: 'Angle Only',
-  angle_density: 'Angle + Density',
+  angle_mud_weight: 'Angle + Mud Weight',
+  angle_density: 'Angle + Mud Weight',
 }
 
 const BASELINE_SAMPLES = 3
 
-function getLastAngles(buffer) {
-  // Return the last BASELINE_SAMPLES records that have a valid gate_angle
-  const valid = buffer.filter((r) => r.gate_angle != null && r.state !== 'SENSOR_FAULT')
+function normalizeDetectionMode(mode) {
+  if (mode === 'angle_density') return 'angle_mud_weight'
+  if (mode === 'angle_only' || mode === 'angle_mud_weight') return mode
+  return 'angle_only'
+}
+
+function getLastBaselineSamples(buffer, mode) {
+  const normalizedMode = normalizeDetectionMode(mode)
+  const valid = buffer.filter((row) => {
+    if (row.gate_angle == null || row.state === 'SENSOR_FAULT') {
+      return false
+    }
+    if (normalizedMode === 'angle_mud_weight' && row.mud_weight == null) {
+      return false
+    }
+    return true
+  })
   return valid.slice(-BASELINE_SAMPLES)
 }
 
@@ -33,7 +48,7 @@ export default function DetectionSummary({ buffer = [] }) {
         if (!response.ok) throw new Error('Failed to load')
         const data = await response.json()
         if (active) {
-          setMode(data.detection_mode)
+          setMode(normalizeDetectionMode(data.detection_mode))
           setError('')
         }
       } catch (err) {
@@ -52,20 +67,19 @@ export default function DetectionSummary({ buffer = [] }) {
   const currentBaselineAngle = latestRecord?.baseline_angle ?? null
 
   async function handleSetBaseline() {
-    const samples = getLastAngles(buffer)
+    const normalizedMode = normalizeDetectionMode(mode)
+    const samples = getLastBaselineSamples(buffer, normalizedMode)
     if (samples.length < BASELINE_SAMPLES) {
-      setSetMsg(`Need ${BASELINE_SAMPLES} valid data points — only ${samples.length} available.`)
+      setSetMsg(`Need ${BASELINE_SAMPLES} valid data points - only ${samples.length} available.`)
       return
     }
 
     const baselineAngle = average(samples.map((r) => r.gate_angle))
 
-    let baselineDensity = null
-    if (mode === 'angle_density') {
-      const densities = samples.map((r) => r.density).filter((d) => d != null)
-      if (densities.length === BASELINE_SAMPLES) {
-        baselineDensity = average(densities)
-      }
+    let baselineMudWeight = null
+    if (normalizedMode === 'angle_mud_weight') {
+      const mudWeights = samples.map((record) => record.mud_weight)
+      baselineMudWeight = average(mudWeights)
     }
 
     setSetting(true)
@@ -75,13 +89,16 @@ export default function DetectionSummary({ buffer = [] }) {
       const response = await fetch('/api/v1/detection-config/set-baseline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseline_angle: baselineAngle, baseline_density: baselineDensity }),
+        body: JSON.stringify({
+          baseline_angle: baselineAngle,
+          baseline_mud_weight: baselineMudWeight,
+        }),
       })
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.detail || 'Failed to set baseline')
       }
-      setSetMsg(`Baseline set to ${baselineAngle.toFixed(2)}°`)
+      setSetMsg(`Baseline set to ${baselineAngle.toFixed(2)} deg`)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -93,8 +110,9 @@ export default function DetectionSummary({ buffer = [] }) {
     window.location.hash = '/settings'
   }
 
-  const modeLabel = MODE_LABELS[mode] ?? mode
-  const canSetBaseline = getLastAngles(buffer).length >= BASELINE_SAMPLES
+  const normalizedMode = normalizeDetectionMode(mode)
+  const modeLabel = MODE_LABELS[normalizedMode] ?? normalizedMode
+  const canSetBaseline = getLastBaselineSamples(buffer, normalizedMode).length >= BASELINE_SAMPLES
 
   return (
     <section className="chart-card detection-summary-card">
@@ -105,7 +123,7 @@ export default function DetectionSummary({ buffer = [] }) {
           <span className="detection-summary-sep">|</span>
           <span className="detection-summary-heading">Baseline</span>
           <span className={`detection-summary-value ${currentBaselineAngle == null ? 'detection-summary-no-baseline' : ''}`}>
-            {currentBaselineAngle != null ? `${currentBaselineAngle.toFixed(2)}°` : 'Not set'}
+            {currentBaselineAngle != null ? `${currentBaselineAngle.toFixed(2)} deg` : 'Not set'}
           </span>
         </div>
 

@@ -60,6 +60,16 @@ class DetectionEngine:
         if self._baseline_angle is None:
             return "NORMAL"
 
+        if mode == "angle_mud_weight" and self._baseline_mud_weight is None:
+            # In angle+mud mode, alerts stay disabled until mud baseline is explicitly set.
+            self._reset_streaks()
+            return "NORMAL"
+
+        if mode == "angle_mud_weight" and mud_weight is None:
+            # A missing mud-weight point breaks streak continuity in combined mode.
+            self._reset_streaks()
+            return "NORMAL"
+
         kick_cond, loss_cond = self._check_conditions(angle, mud_weight, mode)
 
         if kick_cond:
@@ -102,7 +112,9 @@ class DetectionEngine:
         angle_kick = angle > base_angle + ANGLE_THRESHOLD_DEG
         angle_loss = angle < base_angle - ANGLE_THRESHOLD_DEG
 
-        if mode == "angle_mud_weight" and mud_weight is not None and self._baseline_mud_weight is not None:
+        if mode == "angle_mud_weight":
+            if mud_weight is None or self._baseline_mud_weight is None:
+                return False, False
             mud_weight_kick = mud_weight > self._baseline_mud_weight * (1.0 + MUD_WEIGHT_THRESHOLD_PCT)
             mud_weight_loss = mud_weight < self._baseline_mud_weight * (1.0 - MUD_WEIGHT_THRESHOLD_PCT)
             return (angle_kick or mud_weight_kick), (angle_loss or mud_weight_loss)

@@ -1,44 +1,106 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-const MODES = [
+const DISPLAY_OPTIONS = [
   {
-    id: 'angle_only',
-    label: 'Angle Only',
-    description: 'Detects kick/loss based on gate angle deviation from baseline (±5°).',
+    value: 'normal',
+    label: 'Normal Mud Weight',
+    description: 'Use clean mud weight as the primary display value (ppg).',
   },
   {
-    id: 'angle_density',
-    label: 'Angle + Density',
-    description:
-      'Detects kick/loss based on gate angle deviation (±5°) OR mud density deviation (±10%) from baseline. Requires Δh to calculate density.',
+    value: 'cuttings',
+    label: 'Mud Weight w/ Cuttings',
+    description: 'Use cuttings-adjusted mud weight as the primary display value (ppg).',
   },
 ]
 
+const DETECTION_OPTIONS = [
+  {
+    value: 'angle_only',
+    label: 'Angle Only',
+    description: 'Classify kick/loss using gate-angle deviation only.',
+  },
+  {
+    value: 'angle_mud_weight',
+    label: 'Angle + Mud Weight',
+    description: 'Classify kick/loss using angle OR mud-weight deviation thresholds.',
+  },
+]
+
+const BASELINE_SAMPLES = 3
+
+function normalizeDetectionMode(mode) {
+  if (mode === 'angle_density') return 'angle_mud_weight'
+  if (mode === 'angle_only' || mode === 'angle_mud_weight') return mode
+  return 'angle_only'
+}
+
+function formatBaselineValue(value, unit) {
+  if (value == null) return '--'
+  return `${Number(value).toFixed(2)} ${unit}`
+}
+
 export default function SettingsPage() {
-  const [mode, setMode] = useState('angle_only')
-  const [deltaH, setDeltaH] = useState(1.0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState('')
-  const [error, setError] = useState('')
+
+  const [displayMudWeight, setDisplayMudWeight] = useState('normal')
+  const [showMudWeightColumns, setShowMudWeightColumns] = useState(true)
+  const [detectionMode, setDetectionMode] = useState('angle_only')
+  const [baselineAngle, setBaselineAngle] = useState(null)
+  const [baselineMudWeight, setBaselineMudWeight] = useState(null)
+
+  const [cuttingsDensity, setCuttingsDensity] = useState('21.0')
+  const [cuttingsVolumeFraction, setCuttingsVolumeFraction] = useState('0.08')
+  const [suspensionFactor, setSuspensionFactor] = useState('1.00')
+
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [statusMessage, setStatusMessage] = useState('')
+  const [statusType, setStatusType] = useState('')
 
   useEffect(() => {
     let active = true
 
     async function loadSettings() {
+      setLoading(true)
+      setStatusMessage('')
+      setStatusType('')
       try {
-        const response = await fetch('/api/v1/detection-config')
-        if (!response.ok) throw new Error('Failed to load detection settings')
-        const data = await response.json()
-        if (active) {
-          setMode(data.detection_mode)
-          setDeltaH(data.delta_h)
-          setError('')
+        const [runtimeResponse, detectionResponse] = await Promise.all([
+          fetch('/api/v1/config'),
+          fetch('/api/v1/detection-config'),
+        ])
+
+        if (!runtimeResponse.ok) {
+          throw new Error('Failed to load runtime settings.')
         }
-      } catch (err) {
-        if (active) setError(err.message)
+        if (!detectionResponse.ok) {
+          throw new Error('Failed to load detection settings.')
+        }
+
+        const runtimeData = await runtimeResponse.json()
+        const detectionData = await detectionResponse.json()
+
+        if (!active) return
+
+        setDisplayMudWeight(runtimeData.display_mud_weight === 'cuttings' ? 'cuttings' : 'normal')
+        setCuttingsDensity(String(runtimeData.cuttings_density ?? '21.0'))
+        setCuttingsVolumeFraction(String(runtimeData.cuttings_volume_fraction ?? '0.08'))
+        setSuspensionFactor(String(runtimeData.suspension_factor ?? '1.00'))
+
+        setDetectionMode(normalizeDetectionMode(detectionData.detection_mode))
+        setBaselineAngle(detectionData.baseline_angle ?? null)
+        setBaselineMudWeight(detectionData.baseline_mud_weight ?? null)
+
+        setFieldErrors({})
+      } catch (error) {
+        if (active) {
+          setStatusMessage(error.message || 'Failed to load settings.')
+          setStatusType('error')
+        }
       } finally {
-        if (active) setLoading(false)
+        if (active) {
+          setLoading(false)
+        }
       }
     }
 
@@ -48,143 +110,273 @@ export default function SettingsPage() {
     }
   }, [])
 
-  async function handleSave() {
-    setSaving(true)
-    setSaveStatus('')
-    setError('')
+  function validateFields() {
+    const errors = {}
 
-    const body = { detection_mode: mode }
-    if (mode === 'angle_density') {
-      body.delta_h = parseFloat(deltaH) || 1.0
+    const cuttingsDensityValue = parseFloat(cuttingsDensity)
+    const cuttingsVolumeFractionValue = parseFloat(cuttingsVolumeFraction)
+    const suspensionFactorValue = parseFloat(suspensionFactor)
+
+    if (Number.isNaN(cuttingsDensityValue) || cuttingsDensityValue <= 0) {
+      errors.cuttings_density = 'Cuttings density must be a positive number.'
     }
 
-    try {
-      const response = await fetch('/api/v1/detection-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Failed to save settings')
+    if (
+      Number.isNaN(cuttingsVolumeFractionValue) ||
+      cuttingsVolumeFractionValue < 0 ||
+      cuttingsVolumeFractionValue > 1
+    ) {
+      errors.cuttings_volume_fraction = 'Cuttings volume fraction must be between 0.00 and 1.00.'
+    }
+
+    if (Number.isNaN(suspensionFactorValue) || suspensionFactorValue <= 0) {
+      errors.suspension_factor = 'Suspension factor must be greater than 0.'
+    }
+
+    return errors
+  }
+
+  function handleApplySettings() {
+    if (loading || saving) {
+      return
+    }
+
+    const errors = validateFields()
+    setFieldErrors(errors)
+
+    if (Object.keys(errors).length > 0) {
+      setStatusMessage('Please fix validation errors before applying settings.')
+      setStatusType('error')
+      return
+    }
+
+    const runtimePayload = {
+      display_mud_weight: displayMudWeight,
+      cuttings_density: parseFloat(cuttingsDensity),
+      cuttings_volume_fraction: parseFloat(cuttingsVolumeFraction),
+      suspension_factor: parseFloat(suspensionFactor),
+    }
+
+    const detectionPayload = {
+      detection_mode: normalizeDetectionMode(detectionMode),
+    }
+
+    async function saveAll() {
+      setSaving(true)
+      setStatusMessage('')
+      setStatusType('')
+      try {
+        const [runtimeResponse, detectionResponse] = await Promise.all([
+          fetch('/api/v1/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(runtimePayload),
+          }),
+          fetch('/api/v1/detection-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(detectionPayload),
+          }),
+        ])
+
+        if (!runtimeResponse.ok) {
+          const payload = await runtimeResponse.json().catch(() => ({}))
+          throw new Error(payload.detail || 'Failed to save runtime settings.')
+        }
+
+        if (!detectionResponse.ok) {
+          const payload = await detectionResponse.json().catch(() => ({}))
+          throw new Error(payload.detail || 'Failed to save detection settings.')
+        }
+
+        const detectionData = await detectionResponse.json()
+        setDetectionMode(normalizeDetectionMode(detectionData.detection_mode))
+        setBaselineAngle(detectionData.baseline_angle ?? null)
+        setBaselineMudWeight(detectionData.baseline_mud_weight ?? null)
+        setStatusMessage(`Settings applied at ${new Date().toLocaleTimeString()}.`)
+        setStatusType('ok')
+      } catch (error) {
+        setStatusMessage(error.message || 'Failed to apply settings.')
+        setStatusType('error')
+      } finally {
+        setSaving(false)
       }
-      const data = await response.json()
-      setMode(data.detection_mode)
-      setDeltaH(data.delta_h)
-      setSaveStatus('Settings saved.')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
     }
+
+    saveAll()
   }
 
-  if (loading) {
-    return (
-      <section className="chart-card settings-section">
-        <h2>Detection Settings</h2>
-        <p className="settings-hint">Loading...</p>
-      </section>
-    )
-  }
+  const detectionReadiness = useMemo(() => {
+    if (normalizeDetectionMode(detectionMode) === 'angle_mud_weight') {
+      if (baselineAngle != null && baselineMudWeight != null) {
+        return {
+          ready: true,
+          text: 'Ready for Angle + Mud Weight detection.',
+        }
+      }
+      return {
+        ready: false,
+        text: `Manual baseline required (set from latest ${BASELINE_SAMPLES} points).`,
+      }
+    }
+
+    if (baselineAngle != null) {
+      return {
+        ready: true,
+        text: 'Ready for Angle Only detection.',
+      }
+    }
+
+    return {
+      ready: false,
+      text: `Manual baseline required (set from latest ${BASELINE_SAMPLES} points).`,
+    }
+  }, [baselineAngle, baselineMudWeight, detectionMode])
 
   return (
     <div className="settings-page">
       <section className="chart-card settings-section">
-        <h2>Detection Mode</h2>
+        <h2>Detection Strategy</h2>
         <p className="settings-hint">
-          Choose how the system identifies kick and loss events. The baseline is established from
-          the first 3 data points after a session starts (or after a mode change).
+          Choose the active detection mode and confirm baseline readiness before live triage.
         </p>
 
         <div className="settings-mode-grid">
-          {MODES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`settings-mode-card ${mode === item.id ? 'settings-mode-card-active' : ''}`}
-              onClick={() => {
-                setMode(item.id)
-                setSaveStatus('')
-              }}
+          {DETECTION_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className={`settings-mode-card ${
+                normalizeDetectionMode(detectionMode) === option.value ? 'settings-mode-card-active' : ''
+              }`}
             >
-              <span className="settings-mode-title">{item.label}</span>
-              <span className="settings-mode-desc">{item.description}</span>
-            </button>
+              <input
+                type="radio"
+                name="detection_mode"
+                value={option.value}
+                checked={normalizeDetectionMode(detectionMode) === option.value}
+                onChange={(event) => setDetectionMode(normalizeDetectionMode(event.target.value))}
+              />
+              <span className="settings-mode-title">{option.label}</span>
+              <span className="settings-mode-desc">{option.description}</span>
+            </label>
           ))}
         </div>
 
-        {mode === 'angle_density' && (
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="delta-h-input">
-              Δh — Height difference between pressure sensors (meters)
-            </label>
-            <p className="settings-field-hint">
-              This is the vertical distance between the two pressure measurement points on the rig.
-              It changes from rig to rig and rarely needs updating during normal operation.
-            </p>
-            <input
-              id="delta-h-input"
-              type="number"
-              className="settings-input"
-              value={deltaH}
-              min="0.1"
-              step="0.1"
-              onChange={(e) => {
-                setDeltaH(e.target.value)
-                setSaveStatus('')
-              }}
-            />
-            <span className="settings-input-unit">m</span>
-          </div>
-        )}
-
-        <div className="settings-actions">
-          <button
-            type="button"
-            className="report-button"
-            disabled={saving}
-            onClick={handleSave}
-          >
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
-          {saveStatus && <span className="settings-save-ok">{saveStatus}</span>}
-          {error && <span className="settings-error">{error}</span>}
-        </div>
+        <p className={detectionReadiness.ready ? 'settings-save-ok' : 'settings-error'}>{detectionReadiness.text}</p>
+        <p className="settings-hint">
+          Baseline angle: {formatBaselineValue(baselineAngle, 'deg')} | Baseline mud weight:{' '}
+          {formatBaselineValue(baselineMudWeight, 'ppg')}
+        </p>
       </section>
 
       <section className="chart-card settings-section">
-        <h2>Detection Logic Reference</h2>
-        <p className="settings-hint">How detection works in each mode.</p>
+        <h2>Mud Weight Display Preferences</h2>
+        <p className="settings-hint">
+          Select which mud-weight signal is displayed and used for angle + mud-weight detection.
+        </p>
 
-        <div className="settings-reference">
-          <div className="settings-ref-block">
-            <h3>Angle Only</h3>
-            <ul>
-              <li>Baseline: average gate angle over the first 3 data points.</li>
-              <li>
-                <strong>Kick:</strong> angle {'>'} baseline + 5° for 3 consecutive points.
-              </li>
-              <li>
-                <strong>Loss:</strong> angle {'<'} baseline − 5° for 3 consecutive points.
-              </li>
-            </ul>
+        <div className="settings-option-group">
+          {DISPLAY_OPTIONS.map((option) => (
+            <label key={option.value} className="settings-option">
+              <input
+                type="radio"
+                name="display_mud_weight"
+                value={option.value}
+                checked={displayMudWeight === option.value}
+                onChange={(event) => setDisplayMudWeight(event.target.value)}
+              />
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <label className="settings-checkbox">
+          <input
+            type="checkbox"
+            checked={showMudWeightColumns}
+            onChange={(event) => setShowMudWeightColumns(event.target.checked)}
+          />
+          <span>Show mud weight columns in History / Raw Data table</span>
+        </label>
+      </section>
+
+      <section className="chart-card settings-section">
+        <h2>PETE Engineering Inputs</h2>
+        <p className="settings-hint">
+          Inputs required by petroleum engineers for cuttings-adjusted mud weight calculations.
+        </p>
+
+        <div className="settings-form-grid">
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="cuttings-density-input">
+              cuttings_density
+            </label>
+            <p className="settings-field-hint">Cuttings density in pounds per gallon.</p>
+            <input
+              id="cuttings-density-input"
+              type="number"
+              className="settings-input"
+              value={cuttingsDensity}
+              step="0.1"
+              min="0"
+              onChange={(event) => setCuttingsDensity(event.target.value)}
+            />
+            <span className="settings-input-unit">ppg</span>
+            {fieldErrors.cuttings_density && <span className="settings-error">{fieldErrors.cuttings_density}</span>}
           </div>
-          <div className="settings-ref-block">
-            <h3>Angle + Density</h3>
-            <ul>
-              <li>Baseline: average angle and average density over the first 3 data points.</li>
-              <li>
-                Density formula: <code>ρ = ΔP / (g × Δh)</code> (ΔP in PSI → converted to Pa; Δh in meters → ρ in kg/m³)
-              </li>
-              <li>
-                <strong>Kick:</strong> (angle {'>'} baseline + 5°) <em>OR</em> (density {'>'} baseline density × 1.10) for 3 consecutive points.
-              </li>
-              <li>
-                <strong>Loss:</strong> (angle {'<'} baseline − 5°) <em>OR</em> (density {'<'} baseline density × 0.90) for 3 consecutive points.
-              </li>
-            </ul>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="cuttings-volume-fraction-input">
+              cuttings_volume_fraction
+            </label>
+            <p className="settings-field-hint">Fraction of cuttings volume in the mud mixture (0.00 to 1.00).</p>
+            <input
+              id="cuttings-volume-fraction-input"
+              type="number"
+              className="settings-input"
+              value={cuttingsVolumeFraction}
+              step="0.01"
+              min="0"
+              max="1"
+              onChange={(event) => setCuttingsVolumeFraction(event.target.value)}
+            />
+            <span className="settings-input-unit">fraction</span>
+            {fieldErrors.cuttings_volume_fraction && (
+              <span className="settings-error">{fieldErrors.cuttings_volume_fraction}</span>
+            )}
           </div>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="suspension-factor-input">
+              suspension_factor
+            </label>
+            <p className="settings-field-hint">Dimensionless suspension and size-effect factor.</p>
+            <input
+              id="suspension-factor-input"
+              type="number"
+              className="settings-input"
+              value={suspensionFactor}
+              step="0.01"
+              min="0"
+              onChange={(event) => setSuspensionFactor(event.target.value)}
+            />
+            <span className="settings-input-unit">unitless</span>
+            {fieldErrors.suspension_factor && <span className="settings-error">{fieldErrors.suspension_factor}</span>}
+          </div>
+        </div>
+
+        <div className="settings-actions">
+          <button type="button" className="report-button" onClick={handleApplySettings} disabled={loading || saving}>
+            {loading ? 'Loading...' : saving ? 'Applying...' : 'Apply Settings'}
+          </button>
+          {statusMessage && (
+            <span className={statusType === 'error' ? 'settings-error' : 'settings-save-ok'}>
+              {statusMessage}
+            </span>
+          )}
         </div>
       </section>
     </div>

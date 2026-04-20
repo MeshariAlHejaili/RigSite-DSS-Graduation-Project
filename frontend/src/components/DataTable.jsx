@@ -7,19 +7,27 @@ const STATE_COLORS = {
 
 const COLUMNS = [
   { key: 'time', label: 'Time', numeric: false },
-  { key: 'pressure1', label: 'P1', numeric: true },
-  { key: 'pressure2', label: 'P2', numeric: true },
-  { key: 'pressure_diff', label: 'Delta P', numeric: true },
-  { key: 'flow', label: 'Flow', numeric: true },
-  { key: 'expected_flow', label: 'Expected', numeric: true },
-  { key: 'flow_deviation_pct', label: 'Deviation%', numeric: true },
-  { key: 'gate_angle', label: 'Angle', numeric: true },
+  { key: 'pressure1', label: 'P1 (psi)', numeric: true },
+  { key: 'pressure2', label: 'P2 (psi)', numeric: true },
+  { key: 'pressure_diff', label: 'Delta P (psi)', numeric: true },
+  { key: 'flow', label: 'Flow (L/min)', numeric: true },
+  { key: 'expected_flow', label: 'Expected Flow (L/min)', numeric: true },
+  { key: 'flow_deviation_pct', label: 'Deviation (%)', numeric: true },
+  { key: 'gate_angle', label: 'Gate Angle (deg)', numeric: true },
+  { key: 'viscosity', label: 'Viscosity (Pa*s)', numeric: true, placeholder: true },
+  { key: 'normal_mud_weight', label: 'Mud Weight (ppg)', numeric: true, placeholder: true },
+  {
+    key: 'mud_weight_with_cuttings',
+    label: 'Mud Weight w/ Cuttings (ppg)',
+    numeric: true,
+    placeholder: true,
+  },
   { key: 'state', label: 'State', numeric: false },
   { key: 'sensor_status', label: 'Sensor Status', numeric: false },
 ]
 
-function formatNumber(value) {
-  return value == null ? '--' : Number(value).toFixed(2)
+function formatNumber(value, fallback = '--') {
+  return value == null ? fallback : Number(value).toFixed(2)
 }
 
 function formatTime(row) {
@@ -33,14 +41,20 @@ function formatTime(row) {
   return new Date(value).toLocaleTimeString()
 }
 
-function getCellValue(row, key) {
-  if (key === 'time') {
+function getCellValue(row, column) {
+  if (column.key === 'time') {
     return formatTime(row)
   }
-  if (key === 'state' || key === 'sensor_status') {
-    return row[key] ?? '--'
+
+  if (column.key === 'state' || column.key === 'sensor_status') {
+    return row[column.key] ?? '--'
   }
-  return formatNumber(row[key])
+
+  if (column.placeholder) {
+    return formatNumber(row[column.key], '-')
+  }
+
+  return formatNumber(row[column.key])
 }
 
 export default function DataTable({
@@ -73,7 +87,7 @@ export default function DataTable({
                 <tr key={`${row.timestamp}-${index}`} style={{ background: STATE_COLORS[row.state] ?? 'transparent' }}>
                   {COLUMNS.map((column) => (
                     <td key={`${column.key}-${index}`} className={column.numeric ? 'data-table-number' : ''}>
-                      {getCellValue(row, column.key)}
+                      {getCellValue(row, column)}
                     </td>
                   ))}
                 </tr>

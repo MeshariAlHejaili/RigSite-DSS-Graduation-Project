@@ -14,7 +14,10 @@ from utils.config import (
     get_system_settings,
     get_viscosity_constants,
     interpolate_expected_flow,
+    set_detection_baseline,
 )
+
+STARTUP_BASELINE_SAMPLES = 3
 
 
 def _now_iso() -> str:
@@ -67,6 +70,53 @@ class SensorProcessor(IDetector):
         self._get_pete = get_pete or get_pete_constants
         self._get_system = get_system or get_system_settings
         self._get_viscosity = get_viscosity or get_viscosity_constants
+        self._startup_baseline_locked = False
+        self._startup_baseline_mode: str | None = None
+        self._startup_baseline_points: list[tuple[float, float | None]] = []
+
+    def _maybe_initialize_startup_baseline(
+        self,
+        detection_settings: dict,
+        mode: str,
+        gate_angle: float | None,
+        mud_weight: float | None,
+    ) -> dict:
+        # Auto-baseline only once when the system has no baseline at startup.
+        if self._startup_baseline_locked:
+            return detection_settings
+
+        if detection_settings.get("baseline_angle") is not None or detection_settings.get("baseline_mud_weight") is not None:
+            self._startup_baseline_locked = True
+            self._startup_baseline_points.clear()
+            return detection_settings
+
+        if gate_angle is None:
+            return detection_settings
+
+        if mode == "angle_mud_weight" and mud_weight is None:
+            return detection_settings
+
+        if self._startup_baseline_mode is not None and self._startup_baseline_mode != mode:
+            self._startup_baseline_points.clear()
+
+        self._startup_baseline_mode = mode
+        self._startup_baseline_points.append((float(gate_angle), float(mud_weight) if mud_weight is not None else None))
+
+        if len(self._startup_baseline_points) < STARTUP_BASELINE_SAMPLES:
+            return detection_settings
+
+        baseline_angle = sum(point[0] for point in self._startup_baseline_points) / STARTUP_BASELINE_SAMPLES
+        baseline_mud_weight = None
+        if mode == "angle_mud_weight":
+            mud_weights = [point[1] for point in self._startup_baseline_points if point[1] is not None]
+            if len(mud_weights) < STARTUP_BASELINE_SAMPLES:
+                return detection_settings
+            baseline_mud_weight = sum(mud_weights) / STARTUP_BASELINE_SAMPLES
+
+        set_detection_baseline(baseline_angle=baseline_angle, baseline_mud_weight=baseline_mud_weight)
+        self._startup_baseline_locked = True
+        self._startup_baseline_points.clear()
+        return self._get_settings()
 
     def evaluate(self, payload: SensorPayload) -> ProcessedState:
         pete = self._get_pete()
@@ -148,6 +198,15 @@ class SensorProcessor(IDetector):
             )
         )
 
+        mode = detection_settings.get("detection_mode", "angle_only")
+        mud_weight_for_detection = metrics.mud_weight if mode == "angle_mud_weight" else None
+
+        detection_settings = self._maybe_initialize_startup_baseline(
+            detection_settings=detection_settings,
+            mode=mode,
+            gate_angle=payload.gate_angle,
+            mud_weight=mud_weight_for_detection,
+        )
         mode = detection_settings.get("detection_mode", "angle_only")
         mud_weight_for_detection = metrics.mud_weight if mode == "angle_mud_weight" else None
 

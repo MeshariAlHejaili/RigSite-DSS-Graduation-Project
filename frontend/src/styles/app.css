@@ -106,11 +106,64 @@ body {
   gap: 20px;
 }
 
+.page-nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-nav-button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #dbe5f1;
+  color: #1f3864;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.page-nav-button:hover {
+  transform: translateY(-1px);
+  background: #c6d6ea;
+}
+
+.page-nav-button-active {
+  background: #1f3864;
+  color: #ffffff;
+}
+
 .state-badge {
   color: #ffffff;
   padding: 26px 28px;
   border-radius: 18px;
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+}
+
+.live-toolbar {
+  padding-bottom: 16px;
+}
+
+.live-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.debug-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1f3864;
+}
+
+.debug-toggle input {
+  accent-color: #1f3864;
 }
 
 .waiting-state {
@@ -173,6 +226,10 @@ body {
 
 .report-card {
   padding-bottom: 20px;
+}
+
+.reports-page-hero {
+  padding-bottom: 16px;
 }
 
 .report-header {
@@ -634,6 +691,61 @@ body {
   font-size: 0.92rem;
 }
 
+.settings-option-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.settings-option input {
+  margin-top: 2px;
+  accent-color: #1f3864;
+}
+
+.settings-option strong {
+  display: block;
+  color: #1f3864;
+  font-size: 0.9rem;
+}
+
+.settings-option small {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.settings-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.settings-checkbox input {
+  accent-color: #1f3864;
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .settings-mode-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -696,7 +808,8 @@ body {
 }
 
 .settings-input {
-  width: 140px;
+  width: 100%;
+  max-width: 220px;
   padding: 9px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
@@ -706,6 +819,10 @@ body {
   outline: none;
   transition: border-color 0.15s;
   margin-right: 8px;
+}
+
+.settings-form-grid .settings-field {
+  margin-bottom: 0;
 }
 
 .settings-input:focus {
@@ -903,6 +1020,8 @@ body {
   }
 
   .settings-mode-grid,
+  .settings-option-group,
+  .settings-form-grid,
   .settings-reference {
     grid-template-columns: 1fr;
   }
