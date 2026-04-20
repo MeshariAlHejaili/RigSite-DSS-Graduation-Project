@@ -10,8 +10,8 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
-from interfaces import IEventBus
-from schemas import ProcessedState
+from core.interfaces import IEventBus
+from core.schemas import ProcessedState
 
 log = logging.getLogger("riglab.bus")
 

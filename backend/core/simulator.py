@@ -14,11 +14,11 @@ import asyncio
 import logging
 from typing import Literal
 
-from data_sources import SimulatorDataSource
-from detection_engine import DetectionEngine
-from interfaces import IEventBus
-from pipeline import IngestionPipeline
-from sensor_processor import SensorProcessor
+from core.data_sources import SimulatorDataSource
+from core.detection_engine import DetectionEngine
+from core.interfaces import IEventBus
+from core.pipeline import IngestionPipeline
+from core.sensor_processor import SensorProcessor
 
 SimulatorMode = Literal["normal", "kick", "loss"]
 

@@ -8,13 +8,13 @@ from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from classifier import classify_deviation
+from core.classifier import classify_deviation
 from reports.generator import incident_pdf
 
 TransitionHandler = Callable[[dict], Awaitable[None] | None]
 
 _ACTIVE_ENGINE: ContextVar["AnomalyEngine | None"] = ContextVar("active_anomaly_engine", default=None)
-_INCIDENT_OUTPUT_DIR = Path(__file__).resolve().parent / "reports" / "generated"
+_INCIDENT_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "reports" / "generated"
 
 
 class AnomalyEngine:

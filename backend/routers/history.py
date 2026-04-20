@@ -4,7 +4,7 @@ import json
 
 from fastapi import APIRouter, Query
 
-import database
+from utils import database
 
 router = APIRouter()
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncpg
 
-from config import DATABASE_URL, PETE_KEYS, set_pete_constant
+from utils.config import DATABASE_URL, PETE_KEYS, set_pete_constant
 
 pool: asyncpg.Pool | None = None
 

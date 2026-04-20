@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
-from simulator import SimulatorController
+from core.simulator import SimulatorController
 
 router = APIRouter()
 

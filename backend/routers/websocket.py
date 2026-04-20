@@ -14,12 +14,12 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-import database
-from data_sources import WebSocketDataSource
-from detection_engine import DetectionEngine
-from pipeline import IngestionPipeline
-from sensor_processor import SensorProcessor
-from subscribers import WebSocketBroadcaster
+from utils import database
+from core.data_sources import WebSocketDataSource
+from core.detection_engine import DetectionEngine
+from core.pipeline import IngestionPipeline
+from core.sensor_processor import SensorProcessor
+from core.subscribers import WebSocketBroadcaster
 
 router = APIRouter()
 log = logging.getLogger("riglab.ws")

@@ -15,11 +15,11 @@ from __future__ import annotations
 import datetime
 from collections.abc import Callable
 
-import engineering
-from config import get_detection_settings, get_pete_constants, interpolate_expected_flow
-from detection_engine import DetectionEngine, schedule_incident_report
-from interfaces import IDetector
-from schemas import ProcessedState, SensorPayload
+from utils import engineering
+from utils.config import get_detection_settings, get_pete_constants, interpolate_expected_flow
+from core.detection_engine import DetectionEngine, schedule_incident_report
+from core.interfaces import IDetector
+from core.schemas import ProcessedState, SensorPayload
 
 
 def _now_iso() -> str:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-import config as cfg
-import database
+from utils import config as cfg
+from utils import database
 
 router = APIRouter()
 

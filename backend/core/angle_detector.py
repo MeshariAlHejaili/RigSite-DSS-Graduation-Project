@@ -53,7 +53,11 @@ _OBJ_POINTS = np.array(
 
 # ── Calibration state ────────────────────────────────────────────────────────
 
-_CALIB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "angle_calibration.json")
+# Store calibration in the backend root (one level up from core/)
+_CALIB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "angle_calibration.json",
+)
 _R_zero: np.ndarray | None = None
 
 

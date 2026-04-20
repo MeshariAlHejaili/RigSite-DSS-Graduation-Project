@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-import database
+from utils import database
 from reports.generator import daily_pdf, incident_pdf
 
 router = APIRouter()

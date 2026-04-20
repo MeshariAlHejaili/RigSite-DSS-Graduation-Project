@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from interfaces import IDataSource, IDetector, IEventBus
+from core.interfaces import IDataSource, IDetector, IEventBus
 
 log = logging.getLogger("riglab.pipeline")
 

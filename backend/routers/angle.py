@@ -7,10 +7,10 @@ import time
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
-import angle_detector
-from detection_engine import DetectionEngine
-from schemas import SensorPayload
-from sensor_processor import SensorProcessor
+from core import angle_detector
+from core.detection_engine import DetectionEngine
+from core.schemas import SensorPayload
+from core.sensor_processor import SensorProcessor
 
 router = APIRouter(prefix="/angle", tags=["angle"])
 log = logging.getLogger("riglab.angle")

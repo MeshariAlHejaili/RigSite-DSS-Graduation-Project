@@ -14,10 +14,10 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import database
-from event_bus import InMemoryEventBus
-from simulator import SimulatorController
-from subscribers import DatabaseWriter, WebSocketBroadcaster
+from utils import database
+from core.event_bus import InMemoryEventBus
+from core.simulator import SimulatorController
+from core.subscribers import DatabaseWriter, WebSocketBroadcaster
 from routers import websocket as ws_router
 from routers import history as history_router
 from routers import config as config_router

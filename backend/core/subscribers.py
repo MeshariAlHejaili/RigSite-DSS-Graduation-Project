@@ -17,8 +17,8 @@ from dataclasses import asdict
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketState
 
-import database
-from schemas import ProcessedState
+from utils import database
+from core.schemas import ProcessedState
 
 log = logging.getLogger("riglab.subscribers")
 

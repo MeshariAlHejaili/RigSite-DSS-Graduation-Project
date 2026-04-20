@@ -16,9 +16,9 @@ from typing import Literal
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketState
 
-from interfaces import IDataSource
-from schemas import SensorPayload
-import simulator_scenarios
+from core.interfaces import IDataSource
+from core.schemas import SensorPayload
+from core import simulator_scenarios
 
 SimulatorMode = Literal["normal", "kick", "loss"]
 

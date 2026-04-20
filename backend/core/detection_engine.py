@@ -21,7 +21,7 @@ DENSITY_THRESHOLD_PCT = 0.10
 CONSECUTIVE_REQUIRED = 3
 CLEAR_REQUIRED = 3
 
-_INCIDENT_OUTPUT_DIR = Path(__file__).resolve().parent / "reports" / "generated"
+_INCIDENT_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "reports" / "generated"
 
 
 class DetectionEngine:

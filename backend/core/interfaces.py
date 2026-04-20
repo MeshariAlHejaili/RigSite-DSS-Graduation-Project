@@ -12,7 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable
 
-from schemas import ProcessedState, SensorPayload
+from core.schemas import ProcessedState, SensorPayload
 
 
 class IDataSource(ABC):

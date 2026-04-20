@@ -36,7 +36,8 @@ def _base_payload(
 
 
 def normal(sample_index: int) -> dict:
-    gate_angle = _clamp(50.0 + 14.0 * math.sin(sample_index / 4.0) + _noise(1.5), 20.0, 82.0)
+    # Strictly constrained to 50°–55°
+    gate_angle = _clamp(52.5 + 2.5 * math.sin(sample_index / 4.0) + _noise(0.3), 50.0, 55.0)
     expected_flow = _expected_flow(gate_angle)
     flow = expected_flow * (1.0 + _noise(0.08))
     pressure1 = 4.9 + 0.35 * math.sin(sample_index / 6.0) + _noise(0.08)
@@ -50,7 +51,8 @@ def normal(sample_index: int) -> dict:
 
 
 def kick(sample_index: int) -> dict:
-    gate_angle = _clamp(42.0 + 18.0 * math.sin(sample_index / 3.0) + _noise(1.2), 18.0, 78.0)
+    # Strictly constrained to 60°–85°
+    gate_angle = _clamp(72.5 + 12.5 * math.sin(sample_index / 3.0) + _noise(0.8), 60.0, 85.0)
     expected_flow = _expected_flow(gate_angle)
     flow = expected_flow * (1.32 + _noise(0.03))
     pressure1 = 5.3 + 0.45 * math.sin(sample_index / 5.0) + _noise(0.08)
@@ -64,7 +66,8 @@ def kick(sample_index: int) -> dict:
 
 
 def loss(sample_index: int) -> dict:
-    gate_angle = _clamp(60.0 + 16.0 * math.sin(sample_index / 3.5) + _noise(1.2), 24.0, 86.0)
+    # Strictly constrained to 5°–40°
+    gate_angle = _clamp(22.5 + 17.5 * math.sin(sample_index / 3.5) + _noise(0.8), 5.0, 40.0)
     expected_flow = _expected_flow(gate_angle)
     flow = expected_flow * (0.64 + _noise(0.03))
     pressure1 = 4.4 + 0.3 * math.sin(sample_index / 5.0) + _noise(0.08)

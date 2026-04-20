@@ -6,7 +6,8 @@ import os
 
 from dotenv import load_dotenv
 
-_ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+# .env lives at the project root — two levels above this file (backend/utils/ → backend/ → project root)
+_ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
 if os.path.exists(_ENV_PATH):
     load_dotenv(_ENV_PATH)
 else:
