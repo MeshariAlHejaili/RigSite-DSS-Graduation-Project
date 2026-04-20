@@ -1,25 +1,20 @@
-"""SensorProcessor — the IDetector implementation.
-
-Owns the full processing pipeline for one sensor payload:
-  1. Input validation
-  2. Engineering calculations (pressure diff, expected flow, density)
-  3. Detection via an injected DetectionEngine
-  4. Construction of the immutable ProcessedState output
-  5. Fire-and-forget incident report on NORMAL → alarm transition
-
-The DetectionEngine is injected at construction time. SensorProcessor has
-no knowledge of where payloads come from or where ProcessedState goes.
-"""
+"""SensorProcessor - validation, engineering metrics, and anomaly detection."""
 from __future__ import annotations
 
 import datetime
 from collections.abc import Callable
 
-from utils import engineering
-from utils.config import get_detection_settings, get_pete_constants, interpolate_expected_flow
 from core.detection_engine import DetectionEngine, schedule_incident_report
 from core.interfaces import IDetector
 from core.schemas import ProcessedState, SensorPayload
+from utils import engineering
+from utils.config import (
+    get_detection_settings,
+    get_pete_constants,
+    get_system_settings,
+    get_viscosity_constants,
+    interpolate_expected_flow,
+)
 
 
 def _now_iso() -> str:
@@ -57,32 +52,26 @@ def _fault_from_validation(fault_fields: set[str], device_health: dict) -> str:
 
 
 class SensorProcessor(IDetector):
-    """Stateful processor bound to a single DetectionEngine instance.
-
-    One SensorProcessor per ingestion session ensures streak counters are
-    isolated between concurrent WebSocket connections and the simulator.
-
-    Args:
-        engine: The DetectionEngine this processor drives. Callers are
-            responsible for constructing and owning the engine.
-        get_settings: Optional override for reading detection settings,
-            primarily for testing. Defaults to config.get_detection_settings.
-        get_pete: Optional override for reading PETE constants,
-            primarily for testing. Defaults to config.get_pete_constants.
-    """
+    """Stateful processor bound to a single DetectionEngine instance."""
 
     def __init__(
         self,
         engine: DetectionEngine,
         get_settings: Callable[[], dict] | None = None,
         get_pete: Callable[[], dict] | None = None,
+        get_system: Callable[[], dict] | None = None,
+        get_viscosity: Callable[[], dict] | None = None,
     ) -> None:
         self._engine = engine
         self._get_settings = get_settings or get_detection_settings
         self._get_pete = get_pete or get_pete_constants
+        self._get_system = get_system or get_system_settings
+        self._get_viscosity = get_viscosity or get_viscosity_constants
 
     def evaluate(self, payload: SensorPayload) -> ProcessedState:
         pete = self._get_pete()
+        system_settings = self._get_system()
+        viscosity_constants = self._get_viscosity()
         detection_settings = self._get_settings()
 
         device_health = payload.device_health or {
@@ -90,8 +79,8 @@ class SensorProcessor(IDetector):
             "flow_sensor_ok": True,
             "camera_ok": True,
         }
+        display_mud_weight = system_settings.get("display_mud_weight", "normal")
 
-        # --- Validation ---
         faults: set[str] = set()
         if payload.pressure1 is None or not (0.0 <= payload.pressure1 <= 20.0):
             faults.add("pressure1")
@@ -114,10 +103,15 @@ class SensorProcessor(IDetector):
                 pressure_diff=0.0,
                 expected_flow=0.0,
                 flow_deviation_pct=0.0,
-                density=None,
+                mud_weight=None,
+                normal_mud_weight=None,
+                mud_weight_with_cuttings=None,
+                viscosity=None,
+                display_mud_weight=display_mud_weight,
                 angle_deviation=None,
-                density_deviation_pct=None,
+                mud_weight_deviation_pct=None,
                 baseline_angle=None,
+                baseline_mud_weight=None,
                 state="SENSOR_FAULT",
                 decision_confidence=0.0,
                 sensor_status=_fault_from_validation(faults, device_health),
@@ -126,32 +120,39 @@ class SensorProcessor(IDetector):
                 device_health=device_health,
             )
 
-        # --- Engineering calculations (display only; not used in detection) ---
         sensor_status = _sensor_fault_from_health(device_health)
         pressure_diff = round(payload.pressure1 - payload.pressure2, 4)
-        expected_flow = interpolate_expected_flow(
-            payload.gate_angle,
-            flow_baseline=float(pete["flow_baseline"]),
-        )
+        if payload.gate_angle is None:
+            expected_flow = 0.0
+        else:
+            expected_flow = interpolate_expected_flow(
+                payload.gate_angle,
+                flow_baseline=float(pete["flow_baseline"]),
+            )
         if expected_flow == 0:
             flow_deviation_pct = 0.0
         else:
-            flow_deviation_pct = round(
-                ((payload.flow - expected_flow) / expected_flow) * 100.0, 4
-            )
+            flow_deviation_pct = round(((payload.flow - expected_flow) / expected_flow) * 100.0, 4)
 
-        # --- Density (angle_density mode only) ---
-        mode = detection_settings.get("detection_mode", "angle_only")
-        delta_h = float(detection_settings.get("delta_h", 1.0))
-        density = (
-            engineering.calculate_density(pressure_diff, delta_h)
-            if mode == "angle_density"
-            else None
+        metrics = engineering.calculate_metrics(
+            engineering.EngineeringInputs(
+                pressure_diff_psi=pressure_diff,
+                delta_h_ft=float(detection_settings.get("delta_h_ft", 1.0)),
+                pipe_diameter_m=float(viscosity_constants["pipe_diameter_m"]),
+                sensor_spacing_m=float(viscosity_constants["sensor_spacing_m"]),
+                fluid_velocity_m_s=float(viscosity_constants["fluid_velocity_m_s"]),
+                cuttings_density_ppg=float(pete["cuttings_density"]),
+                cuttings_volume_fraction=float(pete["cuttings_volume_fraction"]),
+                suspension_factor=float(pete["suspension_factor"]),
+                display_mud_weight=display_mud_weight,
+            )
         )
 
-        # --- Detection ---
+        mode = detection_settings.get("detection_mode", "angle_only")
+        mud_weight_for_detection = metrics.mud_weight if mode == "angle_mud_weight" else None
+
         self._engine.sync_baseline_from_config(detection_settings)
-        det_state = self._engine.evaluate(payload.gate_angle, density, mode)
+        det_state = self._engine.evaluate(payload.gate_angle, mud_weight_for_detection, mode)
         display = self._engine.get_display_state()
 
         processed_state = ProcessedState(
@@ -163,10 +164,15 @@ class SensorProcessor(IDetector):
             pressure_diff=pressure_diff,
             expected_flow=expected_flow,
             flow_deviation_pct=flow_deviation_pct,
-            density=density,
+            mud_weight=metrics.mud_weight,
+            normal_mud_weight=metrics.normal_mud_weight,
+            mud_weight_with_cuttings=metrics.mud_weight_with_cuttings,
+            viscosity=metrics.viscosity,
+            display_mud_weight=display_mud_weight,
             angle_deviation=display["angle_deviation"],
-            density_deviation_pct=display["density_deviation_pct"],
+            mud_weight_deviation_pct=display["mud_weight_deviation_pct"],
             baseline_angle=display["baseline_angle"],
+            baseline_mud_weight=display["baseline_mud_weight"],
             state=det_state,
             decision_confidence=round(float(payload.angle_confidence), 4),
             sensor_status=sensor_status,
@@ -175,11 +181,11 @@ class SensorProcessor(IDetector):
             device_health=device_health,
         )
 
-        # --- Transition: fire-and-forget incident PDF ---
         transition = self._engine.consume_transition()
         if transition is not None:
             import asyncio
             from dataclasses import asdict
+
             incident = {**asdict(processed_state), "state": transition}
             asyncio.ensure_future(schedule_incident_report(incident))
 

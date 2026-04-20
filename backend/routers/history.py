@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-import json
-
 from fastapi import APIRouter, Query
 
+from core.schemas import (
+    SessionSummaryResponse,
+    SessionsResponse,
+    TelemetryCollectionResponse,
+    storage_record_to_payload,
+)
 from utils import database
 
 router = APIRouter()
-
-
-def _row_to_dict(row) -> dict:
-    record = dict(row)
-    record["timestamp"] = record["timestamp"].isoformat().replace("+00:00", "Z")
-    if isinstance(record.get("device_health"), str):
-        record["device_health"] = json.loads(record["device_health"])
-    record["flow_deviation_pct"] = record.pop("flow_deviation", None)
-    record["decision_confidence"] = record.pop("decision_conf", None)
-    record["processed_at"] = record["timestamp"]
-    record.pop("id", None)
-    return record
 
 
 def _session_row_to_dict(row) -> dict:
@@ -27,18 +19,19 @@ def _session_row_to_dict(row) -> dict:
     if session.get("ended_at") is not None:
         session["ended_at"] = session["ended_at"].isoformat().replace("+00:00", "Z")
     session["record_count"] = int(session["record_count"])
-    return session
+    return SessionSummaryResponse.model_validate(session).model_dump(mode="json")
 
 
-@router.get("/telemetry/recent")
+@router.get("/telemetry/recent", response_model=TelemetryCollectionResponse)
 async def telemetry_recent(limit: int = Query(50, le=500)):
     pool = database.get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM telemetry ORDER BY timestamp DESC LIMIT $1", limit)
-    return {"count": len(rows), "records": [_row_to_dict(row) for row in rows]}
+    records = [storage_record_to_payload(dict(row)) for row in rows]
+    return {"count": len(records), "records": records}
 
 
-@router.get("/telemetry/session")
+@router.get("/telemetry/session", response_model=TelemetryCollectionResponse)
 async def telemetry_session(session_id: int):
     pool = database.get_pool()
     async with pool.acquire() as conn:
@@ -56,16 +49,17 @@ async def telemetry_session(session_id: int):
             session["started_at"],
             session["ended_at"],
         )
-    return {"count": len(rows), "records": [_row_to_dict(row) for row in rows]}
+    records = [storage_record_to_payload(dict(row)) for row in rows]
+    return {"count": len(records), "records": records}
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=SessionsResponse)
 async def sessions():
     pool = database.get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT s.id, s.started_at, s.ended_at, COUNT(t.id) AS record_count
+            SELECT s.id, s.started_at, s.ended_at, s.note, COUNT(t.id) AS record_count
             FROM sessions s
             LEFT JOIN telemetry t
               ON t.timestamp >= s.started_at

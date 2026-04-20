@@ -1,13 +1,4 @@
-"""Angle-based kick/loss detection engine with two selectable modes.
-
-Baseline is FIXED — set manually by the engineer via the UI.
-Detection does not start until a baseline is set.
-Exiting an alarm requires CLEAR_REQUIRED consecutive in-range points.
-
-This module exposes only the DetectionEngine class and two incident-report
-helpers. There are no module-level ContextVar proxies; callers hold an
-engine instance and call its methods directly.
-"""
+"""Angle-based kick/loss detection engine with optional mud-weight support."""
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +8,7 @@ from pathlib import Path
 from reports.generator import incident_pdf
 
 ANGLE_THRESHOLD_DEG = 5.0
-DENSITY_THRESHOLD_PCT = 0.10
+MUD_WEIGHT_THRESHOLD_PCT = 0.10
 CONSECUTIVE_REQUIRED = 3
 CLEAR_REQUIRED = 3
 
@@ -28,7 +19,7 @@ class DetectionEngine:
     def __init__(self) -> None:
         self._mode = "angle_only"
         self._baseline_angle: float | None = None
-        self._baseline_density: float | None = None
+        self._baseline_mud_weight: float | None = None
         self._baseline_version: int = -1
         self._kick_streak = 0
         self._loss_streak = 0
@@ -36,7 +27,7 @@ class DetectionEngine:
         self._last_state = "NORMAL"
         self._pending_transition: str | None = None
         self._last_angle: float | None = None
-        self._last_density: float | None = None
+        self._last_mud_weight: float | None = None
 
     def _reset_streaks(self) -> None:
         self._kick_streak = 0
@@ -52,10 +43,10 @@ class DetectionEngine:
             return
         self._baseline_version = config_version
         self._baseline_angle = detection_settings.get("baseline_angle")
-        self._baseline_density = detection_settings.get("baseline_density")
+        self._baseline_mud_weight = detection_settings.get("baseline_mud_weight")
         self._reset_streaks()
 
-    def evaluate(self, angle: float | None, density: float | None, mode: str) -> str:
+    def evaluate(self, angle: float | None, mud_weight: float | None, mode: str) -> str:
         if mode != self._mode:
             self._mode = mode
             self._reset_streaks()
@@ -64,12 +55,12 @@ class DetectionEngine:
             return "NORMAL"
 
         self._last_angle = angle
-        self._last_density = density
+        self._last_mud_weight = mud_weight
 
         if self._baseline_angle is None:
             return "NORMAL"
 
-        kick_cond, loss_cond = self._check_conditions(angle, density, mode)
+        kick_cond, loss_cond = self._check_conditions(angle, mud_weight, mode)
 
         if kick_cond:
             self._kick_streak += 1
@@ -102,50 +93,53 @@ class DetectionEngine:
         return next_state
 
     def _check_conditions(
-        self, angle: float, density: float | None, mode: str
+        self,
+        angle: float,
+        mud_weight: float | None,
+        mode: str,
     ) -> tuple[bool, bool]:
-        base = self._baseline_angle
+        base_angle = self._baseline_angle
+        angle_kick = angle > base_angle + ANGLE_THRESHOLD_DEG
+        angle_loss = angle < base_angle - ANGLE_THRESHOLD_DEG
 
-        angle_kick = angle > base + ANGLE_THRESHOLD_DEG
-        angle_loss = angle < base - ANGLE_THRESHOLD_DEG
-
-        if mode == "angle_density" and density is not None and self._baseline_density is not None:
-            density_kick = density > self._baseline_density * (1.0 + DENSITY_THRESHOLD_PCT)
-            density_loss = density < self._baseline_density * (1.0 - DENSITY_THRESHOLD_PCT)
-            return (angle_kick or density_kick), (angle_loss or density_loss)
+        if mode == "angle_mud_weight" and mud_weight is not None and self._baseline_mud_weight is not None:
+            mud_weight_kick = mud_weight > self._baseline_mud_weight * (1.0 + MUD_WEIGHT_THRESHOLD_PCT)
+            mud_weight_loss = mud_weight < self._baseline_mud_weight * (1.0 - MUD_WEIGHT_THRESHOLD_PCT)
+            return (angle_kick or mud_weight_kick), (angle_loss or mud_weight_loss)
 
         return angle_kick, angle_loss
 
     def get_display_state(self) -> dict:
         angle_deviation = None
-        density_deviation_pct = None
+        mud_weight_deviation_pct = None
 
         if self._baseline_angle is not None and self._last_angle is not None:
             angle_deviation = round(self._last_angle - self._baseline_angle, 4)
 
         if (
-            self._baseline_density is not None
-            and self._last_density is not None
-            and self._baseline_density != 0
+            self._baseline_mud_weight is not None
+            and self._last_mud_weight is not None
+            and self._baseline_mud_weight != 0
         ):
-            density_deviation_pct = round(
-                (self._last_density - self._baseline_density) / self._baseline_density * 100.0, 4
+            mud_weight_deviation_pct = round(
+                (self._last_mud_weight - self._baseline_mud_weight) / self._baseline_mud_weight * 100.0,
+                4,
             )
 
         return {
             "angle_deviation": angle_deviation,
-            "density_deviation_pct": density_deviation_pct,
+            "mud_weight_deviation_pct": mud_weight_deviation_pct,
             "baseline_angle": round(self._baseline_angle, 4) if self._baseline_angle is not None else None,
+            "baseline_mud_weight": (
+                round(self._baseline_mud_weight, 4) if self._baseline_mud_weight is not None else None
+            ),
         }
 
     def consume_transition(self) -> str | None:
-        """Return and clear any pending NORMAL→alarm transition."""
+        """Return and clear any pending NORMAL-to-alarm transition."""
         transition = self._pending_transition
         self._pending_transition = None
         return transition
-
-
-# ── Incident report helpers ────────────────────────────────────────────────
 
 
 def _row_for_incident_report(state: dict) -> dict:
@@ -171,7 +165,7 @@ def _incident_snapshot_path(state: dict) -> Path:
 
 
 def write_incident_snapshot(state: dict) -> Path:
-    """Write an incident PDF and return its path. Blocking — run via asyncio.to_thread."""
+    """Write an incident PDF and return its path."""
     _INCIDENT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     path = _incident_snapshot_path(state)
     path.write_bytes(incident_pdf([_row_for_incident_report(state)]))

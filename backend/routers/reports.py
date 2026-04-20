@@ -1,31 +1,18 @@
 from __future__ import annotations
 
 import datetime
-import json
 
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from utils import database
+from core.schemas import TelemetryCollectionResponse, storage_record_to_payload
 from reports.generator import daily_pdf, incident_pdf
+from utils import database
 
 router = APIRouter()
 
 
-def _row_to_dict(row) -> dict:
-    record = dict(row)
-    record["timestamp"] = record["timestamp"].isoformat().replace("+00:00", "Z")
-    if isinstance(record.get("device_health"), str):
-        record["device_health"] = json.loads(record["device_health"])
-    record["flow_deviation_pct"] = record.pop("flow_deviation", None)
-    record["decision_confidence"] = record.pop("decision_conf", None)
-    record["processed_at"] = record["timestamp"]
-    record.pop("id", None)
-    return record
-
-
-@router.post("/reports/incident")
-async def report_incident():
+async def _incident_records() -> list[dict]:
     pool = database.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -36,7 +23,38 @@ async def report_incident():
             LIMIT 1
             """
         )
-    pdf = incident_pdf([_row_to_dict(row)] if row else [])
+    if row is None:
+        return []
+    return [storage_record_to_payload(dict(row))]
+
+
+async def _daily_records() -> list[dict]:
+    pool = database.get_pool()
+    since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM telemetry WHERE timestamp >= $1 ORDER BY timestamp DESC",
+            since,
+        )
+    return [storage_record_to_payload(dict(row)) for row in rows]
+
+
+@router.get("/reports/incident/payload", response_model=TelemetryCollectionResponse)
+async def report_incident_payload():
+    records = await _incident_records()
+    return {"count": len(records), "records": records}
+
+
+@router.get("/reports/daily/payload", response_model=TelemetryCollectionResponse)
+async def report_daily_payload():
+    records = await _daily_records()
+    return {"count": len(records), "records": records}
+
+
+@router.post("/reports/incident")
+async def report_incident():
+    records = await _incident_records()
+    pdf = incident_pdf(records)
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -46,14 +64,8 @@ async def report_incident():
 
 @router.post("/reports/daily")
 async def report_daily():
-    pool = database.get_pool()
-    since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM telemetry WHERE timestamp >= $1 ORDER BY timestamp DESC",
-            since,
-        )
-    pdf = daily_pdf([_row_to_dict(row) for row in rows])
+    records = await _daily_records()
+    pdf = daily_pdf(records)
     return Response(
         content=pdf,
         media_type="application/pdf",

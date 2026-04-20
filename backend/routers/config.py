@@ -2,51 +2,75 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from core.schemas import (
+    DetectionBaselineRequest,
+    DetectionConfigResponse,
+    DetectionConfigUpdateRequest,
+    RuntimeConfigResponse,
+    RuntimeConfigUpdateRequest,
+)
 from utils import config as cfg
 from utils import database
 
 router = APIRouter()
 
-ALLOWED_PETE_KEYS = set(cfg.PETE_KEYS)
 
-
-@router.get("/config")
+@router.get("/config", response_model=RuntimeConfigResponse)
 async def get_config():
-    return cfg.get_pete_constants()
+    return cfg.get_runtime_config()
 
 
-@router.post("/config")
-async def update_config(body: dict):
-    invalid = set(body.keys()) - ALLOWED_PETE_KEYS
-    if invalid:
-        raise HTTPException(400, f"Unknown keys: {invalid}")
+@router.post("/config", response_model=RuntimeConfigResponse)
+async def update_config(body: RuntimeConfigUpdateRequest):
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(400, "provide at least one config field")
 
     pool = database.get_pool()
     async with pool.acquire() as conn:
-        for key, value in body.items():
-            await conn.execute(
-                "UPDATE pete_constants SET value = $1, updated_at = NOW() WHERE key = $2",
-                float(value),
-                key,
-            )
-            cfg.set_pete_constant(key, value)
+        for key, value in updates.items():
+            if key in cfg.PETE_KEYS:
+                await conn.execute(
+                    """
+                    INSERT INTO pete_constants (key, value, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (key)
+                    DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                    """,
+                    key,
+                    float(value),
+                )
+                cfg.set_pete_constant(key, value)
+            elif key in cfg.SYSTEM_SETTING_KEYS:
+                await conn.execute(
+                    """
+                    INSERT INTO system_settings (key, value, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (key)
+                    DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                    """,
+                    key,
+                    str(value),
+                )
+                cfg.set_system_setting(key, str(value))
+            else:
+                raise HTTPException(400, f"Unknown key: {key}")
 
-    return {"updated": list(body.keys()), "current": cfg.get_pete_constants()}
+    return cfg.get_runtime_config()
 
 
-@router.get("/detection-config")
+@router.get("/detection-config", response_model=DetectionConfigResponse)
 async def get_detection_config():
     return cfg.get_detection_settings()
 
 
-@router.post("/detection-config")
-async def update_detection_config(body: dict):
-    allowed = {"detection_mode", "delta_h"}
-    invalid = set(body.keys()) - allowed
-    if invalid:
-        raise HTTPException(400, f"Unknown keys: {invalid}")
+@router.post("/detection-config", response_model=DetectionConfigResponse)
+async def update_detection_config(body: DetectionConfigUpdateRequest):
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(400, "provide at least one detection config field")
 
-    for key, value in body.items():
+    for key, value in updates.items():
         try:
             cfg.set_detection_setting(key, value)
         except ValueError as exc:
@@ -55,28 +79,10 @@ async def update_detection_config(body: dict):
     return cfg.get_detection_settings()
 
 
-@router.post("/detection-config/set-baseline")
-async def set_baseline(body: dict):
-    """Fix the detection baseline from the last N data points (calculated by the frontend).
-
-    Body: { "baseline_angle": float, "baseline_density": float | null }
-    Increments baseline_version so every active engine resyncs on next evaluation.
-    """
-    baseline_angle = body.get("baseline_angle")
-    if baseline_angle is None:
-        raise HTTPException(400, "baseline_angle is required")
-
+@router.post("/detection-config/set-baseline", response_model=DetectionConfigResponse)
+async def set_baseline(body: DetectionBaselineRequest):
     try:
-        baseline_angle = float(baseline_angle)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(400, "baseline_angle must be a number") from exc
-
-    baseline_density = body.get("baseline_density")
-    if baseline_density is not None:
-        try:
-            baseline_density = float(baseline_density)
-        except (TypeError, ValueError) as exc:
-            raise HTTPException(400, "baseline_density must be a number or null") from exc
-
-    cfg.set_detection_baseline(baseline_angle, baseline_density)
+        cfg.set_detection_baseline(body.baseline_angle, body.baseline_mud_weight)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return cfg.get_detection_settings()

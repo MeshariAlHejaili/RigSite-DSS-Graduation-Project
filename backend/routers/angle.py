@@ -1,7 +1,6 @@
 """HTTP endpoints for ArUco-based gate angle detection and full-pipeline image ingest."""
 from __future__ import annotations
 
-import dataclasses
 import logging
 import time
 
@@ -9,7 +8,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 
 from core import angle_detector
 from core.detection_engine import DetectionEngine
-from core.schemas import SensorPayload
+from core.schemas import SensorPayload, processed_state_to_payload
 from core.sensor_processor import SensorProcessor
 
 router = APIRouter(prefix="/angle", tags=["angle"])
@@ -91,4 +90,4 @@ async def ingest_frame(
         state.state,
         angle_detector.is_calibrated(),
     )
-    return {**dataclasses.asdict(state), "calibrated": angle_detector.is_calibrated()}
+    return {**processed_state_to_payload(state), "calibrated": angle_detector.is_calibrated()}

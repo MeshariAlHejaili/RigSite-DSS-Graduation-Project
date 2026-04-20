@@ -1,25 +1,16 @@
-"""WebSocket transport layer — connection management only.
-
-/ws/ingest  — accepts a sensor data producer (Raspberry Pi or any client)
-              and runs it through the IngestionPipeline for the session lifetime.
-/ws/live    — fan-out endpoint; dashboard clients subscribe here to receive
-              real-time ProcessedState broadcasts from the WebSocketBroadcaster.
-
-All processing, persistence, and broadcast logic lives in other layers.
-This router is purely responsible for connection lifecycle.
-"""
+"""WebSocket transport layer for ingest and normalized live telemetry."""
 from __future__ import annotations
 
 import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from utils import database
 from core.data_sources import WebSocketDataSource
 from core.detection_engine import DetectionEngine
 from core.pipeline import IngestionPipeline
 from core.sensor_processor import SensorProcessor
 from core.subscribers import WebSocketBroadcaster
+from utils import database
 
 router = APIRouter()
 log = logging.getLogger("riglab.ws")
@@ -64,6 +55,7 @@ async def ws_ingest(websocket: WebSocket) -> None:
 
 @router.websocket("/ws/live")
 async def ws_live(websocket: WebSocket) -> None:
+    """Subscribe to normalized live telemetry payloads."""
     broadcaster: WebSocketBroadcaster = websocket.app.state.broadcaster
     await websocket.accept()
     broadcaster.add(websocket)
