@@ -1,125 +1,179 @@
-# RigSite-DSS — Development Roadmap
+# RigSite-DSS - Development Roadmap
 
 > Scope: graduation project prototype. Items are kept practical and focused.
 
 ---
 
-## Phase 1 — Quick Fixes & Foundation (do first)
+## Phase 1 - Quick Fixes & Foundation (do first)
 
 ### 1. Fix Simulator Angle Ranges
-- **What:** Constrain simulated gate angles per scenario — normal: 50–55°, kick: 60–85°, loss: 5–40°
+- **What:** Constrain simulated gate angles per scenario - normal: 50-55 deg, kick: 60-85 deg, loss: 5-40 deg
 - **Why:** Current simulator does not reliably stay in the correct range, making testing and demos unreliable
 - **Priority:** High
 - **Dependencies:** None
-- **Files:** `backend/simulator.py`, `backend/simulator_scenarios.py`
+- **Files:** `backend/core/simulator.py`, `backend/core/simulator_scenarios.py`
 
 ### 2. Reorganize Files into Folders
-- **What:** Group backend files into subfolders — `core/` (engine, classifier, detector), `utils/` (config, processing), keep `routers/` as-is
+- **What:** Group backend files into subfolders - `core/` for engine, classifier, detector, schemas, simulator, and `utils/` for config, database, engineering; keep `routers/` as-is
 - **Why:** Flat backend structure is hard to navigate as the codebase grows
 - **Priority:** High
-- **Dependencies:** None (do before adding new features)
-- **Files:** All `backend/*.py` modules
+- **Dependencies:** None
+- **Files:** All `backend/*.py` modules that are being moved into `backend/core/` and `backend/utils/`
 
 ---
 
-## Phase 2 — Data Layer
+## Phase 2 - Parallel Track A (Backend Data + API Contract)
 
-### 3. Restructure the Database
-- **What:** Add columns/tables for new calculated variables: viscosity, normal mud weight, mud weight with cuttings, density
+> Owner suggestion: one person owns all backend work in this track.
+> Goal: deliver the calculated metrics and a stable response shape without touching frontend files.
+
+### 3A. Restructure the Database
+- **What:** Add columns or tables for new calculated variables: viscosity, normal mud weight, and mud weight with cuttings
 - **Why:** Current schema only stores raw sensor values; reports and dashboard cannot show derived variables without schema support
 - **Priority:** High
-- **Dependencies:** Phase 1 complete (cleaner file layout makes migration easier)
-- **Files:** `backend/database.py`, `backend/models.py`
+- **Dependencies:** Phase 1 complete
+- **Files:** `backend/utils/database.py`, `backend/core/models.py`
 
-### 4. Add New Calculated Metrics
-- **What:** Implement backend calculations for: viscosity, normal mud weight, mud weight with cuttings, density — derived from existing sensor inputs
+### 4A. Add New Calculated Metrics
+- **What:** Implement backend calculations for viscosity, normal mud weight, and mud weight with cuttings derived from existing sensor inputs
 - **Why:** These are the physically meaningful indicators that operators care about, not raw sensor voltages
 - **Priority:** High
-- **Dependencies:** Item 3 (DB schema updated)
-- **Files:** `backend/engineering.py` (add formulas), `backend/processing.py`
+- **Dependencies:** Item 3A
+- **Files:** `backend/utils/engineering.py`, `backend/core/sensor_processor.py`, `backend/core/schemas.py`
+
+### 5A. Expose a Stable Frontend Contract
+- **What:** Return the new metrics in WebSocket, history, and report payloads and document the exact field names the frontend should consume
+- **Why:** This is the only handoff needed for parallel frontend work
+- **Priority:** High
+- **Dependencies:** Item 4A
+- **Files:** `backend/routers/history.py`, `backend/routers/reports.py`, `backend/routers/websocket.py`, `backend/core/schemas.py`
+
+### 6A. Add Mud Weight Config Support
+- **What:** Add backend config support for selecting which mud weight is the preferred display value
+- **Why:** Lets the frontend settings page connect later without changing backend internals
+- **Priority:** Medium
+- **Dependencies:** Item 5A
+- **Files:** `backend/routers/config.py`, `backend/utils/config.py`
+
+### 7A. Rename Existing Backend "Density" Definitions to "Mud Weight"
+- **What:** Replace any existing backend field, schema, variable, API payload key, or comment that uses `density` as a mud property term with `mud_weight`
+- **Why:** In this project, mud weight is the correct term, and keeping both names will create confusion across backend and frontend work
+- **Priority:** High
+- **Dependencies:** Items 3A-6A
+- **Files:** `backend/core/schemas.py`, `backend/core/sensor_processor.py`, `backend/utils/engineering.py`, related routers and models
 
 ---
 
-## Phase 3 — Dashboard & UI
+## Phase 3 - Parallel Track B (Frontend Layout + Presentation)
 
-### 5. Replace Raw Sensor Data with Calculated Variables
-- **What:** Show viscosity, mud weights, and density in the dashboard instead of (or alongside) raw pressure/flow readings
-- **Why:** Operators interpret mud properties, not raw ADC values
+> Owner suggestion: the second person owns all frontend work in this track.
+> Goal: improve the UI structure and component layout while avoiding backend files.
+
+### 3B. Reorganize UI into Logical Pages / Sections
+- **What:** Split the dashboard into at minimum: **Live Monitor**, **History / Raw Data**, **Reports**, and **Settings** using tabs or routes
+- **Why:** Everything on one page makes the UI crowded and hard to navigate
 - **Priority:** High
-- **Dependencies:** Item 4 (metrics available from backend)
-- **Files:** `frontend/src/components/DataTable.jsx`, relevant chart components
+- **Dependencies:** Phase 1 complete
+- **Files:** `frontend/src/App.jsx`, `frontend/src/components/*`
 
-### 6. Reformat and Reorganize the Raw Data Table
-- **What:** Clean up column order, add units, improve column headers, optionally collapse low-interest columns
-- **Why:** Current table is hard to read in the dashboard
-- **Priority:** Medium
-- **Dependencies:** Item 5 (so final columns are known before reformatting)
+### 4B. Reformat and Reorganize the Data Table
+- **What:** Clean up column order, add units, improve column headers, and prepare slots for calculated variables
+- **Why:** The current table is hard to read, and this can be improved before backend integration finishes
+- **Priority:** High
+- **Dependencies:** Item 3B
 - **Files:** `frontend/src/components/DataTable.jsx`
 
-### 7. Remove or Hide Sensor Status Indicators
-- **What:** Evaluate whether sensor status badges serve a purpose; if not, remove them; if marginal, put behind a toggle
+### 5B. Remove or Hide Sensor Status Indicators
+- **What:** Remove the status badges or move them behind a toggle so the main view stays clean
 - **Why:** They add visual noise and may confuse operators if the logic is not accurate
 - **Priority:** Medium
-- **Dependencies:** Item 5
+- **Dependencies:** Item 3B
 - **Files:** `frontend/src/components/StateBadge.jsx`, `frontend/src/App.jsx`
 
-### 8. Reorganize UI into Logical Pages / Sections
-- **What:** Split the dashboard into at minimum: **Live Monitor**, **History / Raw Data**, **Reports**, **Settings** — use tabs or separate routes
-- **Why:** Everything on one page makes the UI crowded and hard to navigate
+### 6B. Build the Settings UI Shell
+- **What:** Create the settings page UI for mud weight selection and related display options, even if the backend hookup comes slightly later
+- **Why:** The page structure can be completed independently as long as the API contract is known
 - **Priority:** Medium
-- **Dependencies:** Items 5–7 (so you know what belongs on each page before restructuring)
-- **Files:** `frontend/src/App.jsx`, all components
+- **Dependencies:** Item 3B
+- **Files:** `frontend/src/components/SettingsPage.jsx`
 
-### 9. Add Mud Weight Display Setting
-- **What:** Settings toggle to choose which mud weight is shown — normal mud weight or mud weight with cuttings
-- **Why:** Different operators / stages of drilling prefer different metrics
-- **Priority:** Medium
-- **Dependencies:** Item 4 (both metrics computed), Item 8 (Settings page exists)
-- **Files:** `frontend/src/components/SettingsPage.jsx`, `backend/routers/config.py`
+### 7B. Replace Raw Sensor Emphasis with Calculated Metrics
+- **What:** Once Track A publishes the new payload fields, switch the dashboard to show viscosity and mud weight values instead of or alongside raw pressure and flow values
+- **Why:** Operators interpret mud properties, not raw ADC values
+- **Priority:** High
+- **Dependencies:** Item 5A from Track A, plus Items 3B-6B from Track B
+- **Files:** `frontend/src/components/DataTable.jsx`, relevant chart components
 
 ---
 
-## Phase 4 — Reports & Integration
+## Phase 4 - Reports & Integration
 
 ### 10. Improve Daily and Incident Reports
-- **What:** Include new metrics (viscosity, mud weights, density) in report output; add anomaly summary with timestamps and detected mode; improve formatting
+- **What:** Include new metrics such as viscosity and mud weights in report output; add anomaly summary with timestamps and detected mode; improve formatting
 - **Why:** Current reports show minimal information and are not useful for post-event review
 - **Priority:** Medium
-- **Dependencies:** Item 4 (metrics available), Item 3 (DB stores them)
+- **Dependencies:** Item 4A and Item 3A
 - **Files:** `backend/reports/`, `backend/routers/reports.py`, `frontend/src/components/ReportControls.jsx`
 
 ### 11. WebSocket Readiness for Raspberry Pi
-- **What:** Ensure the WebSocket endpoint accepts: (a) JSON frames with pressure1, pressure2, flow meter; (b) one gate image per second as binary or base64; validate and handle connection drops gracefully
+- **What:** Ensure the WebSocket endpoint accepts: (a) JSON frames with pressure1, pressure2, and flow meter data; (b) one gate image per second as binary or base64; validate and handle connection drops gracefully
 - **Why:** The system needs to work with the physical hardware setup without code changes
 - **Priority:** Medium
-- **Dependencies:** Items 3–4 (data pipeline must be ready to process incoming data)
-- **Files:** `backend/routers/websocket.py`, `backend/processing.py`
+- **Dependencies:** Item 3A and Item 4A
+- **Files:** `backend/routers/websocket.py`, `backend/core/data_sources.py`, `backend/core/pipeline.py`
+
+---
+
+## Parallel Work Rules
+
+### AI implementation clarification
+- This split is designed for parallel AI-assisted implementation as well as human parallel work.
+- Each person should use a separate AI chat or thread for their own track so context stays focused and the generated changes do not overlap.
+- Track A AI should work only in `backend/` files, and Track B AI should work only in `frontend/` files.
+- Do not ask both AIs to edit the same file at the same time except during the final short integration pass.
+- Before starting implementation, give both AIs the agreed field names so they generate compatible code on the first pass.
+- Prefer separate git branches for each track, then merge after the backend contract is ready.
+
+### Track A - Backend owner
+- Touch only `backend/` files.
+- Own the payload field names and keep a short contract note in this roadmap or in a small API note.
+- Do not edit frontend components except to clarify payload names in documentation.
+
+### Track B - Frontend owner
+- Touch only `frontend/` files.
+- Build against a mock sample payload first, then swap to real backend fields after Item 5A lands.
+- Do not edit backend logic or router behavior.
+
+### Shared handshake
+- Agree once on field names for `viscosity`, `normal_mud_weight`, `mud_weight_with_cuttings`, and `display_mud_weight`.
+- Treat any existing backend `density` naming as legacy wording that must be renamed to `mud_weight`.
+- Prefer one integration file on the frontend for payload mapping so the final merge stays small.
+- Avoid both editing the same file in the same week unless it is a short planned integration pass.
 
 ---
 
 ## Extra Suggested Items
-> Not in the original requirements — add only if time allows.
+> Not in the original requirements - add only if time allows.
 
 | # | Item | Why | Priority |
 |---|------|-----|----------|
 | E1 | Add CSV export for raw data table | Useful for lab analysis and report submission | Low |
-| E2 | Add input validation + error feedback for WebSocket frames | Prevents silent data corruption from malformed Pi messages | Low |
+| E2 | Add input validation and error feedback for WebSocket frames | Prevents silent data corruption from malformed Pi messages | Low |
 | E3 | Add a connection quality indicator for the Raspberry Pi link | Operators need to know if the hardware is live | Low |
 
 ---
 
-## Recommended Implementation Order
+## Recommended Parallel Implementation Order
 
-| Step | Item | Reason |
-|------|------|---------|
-| 1 | Fix simulator | Isolated, zero dependencies, unblocks testing immediately |
-| 2 | Reorganize files | No behavior changes; makes all future work cleaner |
-| 3 | Restructure DB | Foundation — everything else depends on schema |
-| 4 | Add new metrics (backend) | Needed before any UI or report work |
-| 5 | Replace raw data with metrics (frontend) | Core dashboard improvement, unblocks UI decisions |
-| 6 | Reformat data table | Now you know the final columns |
-| 7 | Remove/hide sensor status | Low risk cleanup after table is settled |
-| 8 | Reorganize UI into pages | Do after content is finalized, not before |
-| 9 | Mud weight settings toggle | Simple once the Settings page exists |
-| 10 | Improve reports | Needs both DB and metrics ready |
-| 11 | WebSocket Pi readiness | Do last — validates the full pipeline end-to-end |
+| Step | Owner | Item | Reason |
+|------|-------|------|--------|
+| 1 | Backend | 3A | Schema is the backend foundation |
+| 2 | Frontend | 3B | UI page structure can start immediately |
+| 3 | Backend | 4A | Calculated metrics depend on schema support |
+| 4 | Frontend | 4B and 5B | Table cleanup and status cleanup do not need backend changes |
+| 5 | Frontend | 6B | Settings page shell can be built before API hookup |
+| 6 | Backend | 5A | Publish the final payload contract for frontend integration |
+| 7 | Backend | 6A | Add config support for mud weight preference |
+| 8 | Frontend | 7B | Swap UI from raw emphasis to calculated metrics |
+| 9 | Shared short integration pass | Connect Track B settings UI to Track A config endpoint and verify end-to-end behavior |
+| 10 | Backend or shared | 10 and 11 | Reports and Raspberry Pi readiness come after both tracks are stable |
