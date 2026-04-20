@@ -492,6 +492,13 @@ body {
   margin-bottom: 0;
 }
 
+.angle-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
 .angle-calib-badge {
   flex-shrink: 0;
   border-radius: 999px;
@@ -516,6 +523,81 @@ body {
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 8px;
+}
+
+.angle-calib-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.angle-calib-block {
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 14px 16px;
+}
+
+.angle-calib-block h3 {
+  margin: 0 0 8px;
+  color: #1f3864;
+  font-size: 0.96rem;
+}
+
+.angle-calib-panel-text {
+  margin: 0 0 12px;
+  color: #475569;
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+
+.angle-calib-panel-meta {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.angle-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.angle-mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+
+.angle-mode-card:hover {
+  border-color: #1f3864;
+  transform: translateY(-1px);
+}
+
+.angle-mode-card-active {
+  border-color: #1f3864;
+  background: #dbe5f1;
+}
+
+.angle-mode-title {
+  color: #1f3864;
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.angle-mode-desc {
+  color: #475569;
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .angle-calib-cta {
@@ -672,6 +754,16 @@ body {
   font-size: 1.1rem;
   font-weight: 800;
   color: #1f3864;
+}
+
+.angle-result-warning {
+  margin: 4px 0 0;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 /* ── Settings Page ──────────────────────────────────────────────── */
@@ -1020,6 +1112,8 @@ body {
   }
 
   .settings-mode-grid,
+  .angle-mode-grid,
+  .angle-calib-panel,
   .settings-option-group,
   .settings-form-grid,
   .settings-reference {
@@ -1038,5 +1132,13 @@ body {
 
   .raw-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .angle-upload-header {
+    flex-direction: column;
+  }
+
+  .angle-status-stack {
+    align-items: flex-start;
   }
 }

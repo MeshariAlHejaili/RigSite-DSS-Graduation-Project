@@ -23,6 +23,10 @@ class SensorPayload:
     gate_angle: float | None
     timestamp: float
     angle_confidence: float = 1.0
+    angle_mode: Literal["mounted", "handheld"] = "mounted"
+    angle_warning: str | None = None
+    viewpoint_consistent: bool | None = None
+    camera_calibrated: bool = False
     device_health: dict = field(
         default_factory=lambda: {
             "pressure_sensor_ok": True,
@@ -57,6 +61,10 @@ class ProcessedState:
     decision_confidence: float
     sensor_status: str
     detection_mode: DetectionMode
+    angle_mode: Literal["mounted", "handheld"] | None
+    angle_warning: str | None
+    viewpoint_consistent: bool | None
+    camera_calibrated: bool | None
     processed_at: str
     device_health: dict
 
@@ -93,6 +101,10 @@ class TelemetryRecordResponse(BaseModel):
     decision_confidence: float
     sensor_status: str
     detection_mode: DetectionMode
+    angle_mode: Literal["mounted", "handheld"] | None = None
+    angle_warning: str | None = None
+    viewpoint_consistent: bool | None = None
+    camera_calibrated: bool | None = None
     processed_at: str
     device_health: DeviceHealthModel
 
@@ -220,6 +232,10 @@ def storage_record_to_payload(record: dict[str, Any]) -> dict[str, Any]:
     payload.pop("id", None)
     if payload.get("display_mud_weight") is None:
         payload["display_mud_weight"] = "normal"
+    payload.setdefault("angle_mode", None)
+    payload.setdefault("angle_warning", None)
+    payload.setdefault("viewpoint_consistent", None)
+    payload.setdefault("camera_calibrated", None)
 
     if payload.get("mud_weight") is None:
         display_choice = payload["display_mud_weight"]

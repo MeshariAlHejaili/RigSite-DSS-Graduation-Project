@@ -166,6 +166,10 @@ class SensorProcessor(IDetector):
                 decision_confidence=0.0,
                 sensor_status=_fault_from_validation(faults, device_health),
                 detection_mode=detection_settings.get("detection_mode", "angle_only"),
+                angle_mode=payload.angle_mode,
+                angle_warning=payload.angle_warning,
+                viewpoint_consistent=payload.viewpoint_consistent,
+                camera_calibrated=payload.camera_calibrated,
                 processed_at=_now_iso(),
                 device_health=device_health,
             )
@@ -236,6 +240,10 @@ class SensorProcessor(IDetector):
             decision_confidence=round(float(payload.angle_confidence), 4),
             sensor_status=sensor_status,
             detection_mode=mode,
+            angle_mode=payload.angle_mode,
+            angle_warning=payload.angle_warning,
+            viewpoint_consistent=payload.viewpoint_consistent,
+            camera_calibrated=payload.camera_calibrated,
             processed_at=_now_iso(),
             device_health=device_health,
         )

@@ -9,6 +9,7 @@ SimulatorDataSource   — generates synthetic payloads from scenario functions.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 from collections.abc import AsyncIterator
 from typing import Literal
@@ -16,6 +17,7 @@ from typing import Literal
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketState
 
+from core import angle_detector
 from core.interfaces import IDataSource
 from core.schemas import SensorPayload
 from core import simulator_scenarios
@@ -29,6 +31,20 @@ _SCENARIO_FNS = {
     "kick": simulator_scenarios.kick,
     "loss": simulator_scenarios.loss,
 }
+
+
+def _decode_base64_frame(raw_value: object) -> bytes | None:
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return None
+
+    encoded = raw_value.strip()
+    if encoded.startswith("data:") and "," in encoded:
+        encoded = encoded.split(",", 1)[1]
+
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except Exception:
+        return None
 
 
 class WebSocketDataSource(IDataSource):
@@ -53,13 +69,43 @@ class WebSocketDataSource(IDataSource):
                 continue
 
             try:
+                gate_angle = raw.get("gate_angle")
+                angle_confidence = float(raw.get("angle_confidence", 1.0))
+                angle_mode = angle_detector.normalize_mode(raw.get("angle_mode"))
+                angle_warning = raw.get("angle_warning")
+                viewpoint_consistent = raw.get("viewpoint_consistent")
+                camera_calibrated = bool(raw.get("camera_calibrated", False))
+
+                if gate_angle is None:
+                    image_bytes = (
+                        _decode_base64_frame(raw.get("image_base64"))
+                        or _decode_base64_frame(raw.get("frame_base64"))
+                        or _decode_base64_frame(raw.get("image"))
+                    )
+                    if image_bytes is not None:
+                        result = angle_detector.detect_angle(image_bytes, mode=angle_mode)
+                        gate_angle = result.angle
+                        angle_confidence = result.confidence
+                        angle_warning = result.warning
+                        viewpoint_consistent = result.viewpoint_consistent
+                        camera_calibrated = result.camera_calibrated
+
+                        if not result.detected:
+                            device_health = raw.get("device_health", {})
+                            device_health["camera_ok"] = False
+                            raw["device_health"] = device_health
+
                 yield SensorPayload(
                     pressure1=raw["pressure1"],
                     pressure2=raw["pressure2"],
                     flow=raw["flow"],
-                    gate_angle=raw.get("gate_angle"),
+                    gate_angle=gate_angle,
                     timestamp=raw["timestamp"],
-                    angle_confidence=float(raw.get("angle_confidence", 1.0)),
+                    angle_confidence=angle_confidence,
+                    angle_mode=angle_mode,
+                    angle_warning=angle_warning,
+                    viewpoint_consistent=viewpoint_consistent,
+                    camera_calibrated=camera_calibrated,
                     device_health=raw.get("device_health", {}),
                 )
             except (KeyError, TypeError, ValueError) as exc:
@@ -101,6 +147,10 @@ class SimulatorDataSource(IDataSource):
                 gate_angle=raw.get("gate_angle"),
                 timestamp=raw["timestamp"],
                 angle_confidence=float(raw.get("angle_confidence", 1.0)),
+                angle_mode=angle_detector.normalize_mode(raw.get("angle_mode")),
+                angle_warning=raw.get("angle_warning"),
+                viewpoint_consistent=raw.get("viewpoint_consistent"),
+                camera_calibrated=bool(raw.get("camera_calibrated", False)),
                 device_health=raw.get("device_health", {}),
             )
             await asyncio.sleep(self._interval)

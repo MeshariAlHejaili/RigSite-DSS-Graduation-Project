@@ -1,9 +1,29 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+const MODE_OPTIONS = [
+  {
+    value: 'handheld',
+    label: 'Handheld Upload',
+    description: 'Best-effort debug path. Camera drift is checked and may downgrade or reject the reading.',
+  },
+  {
+    value: 'mounted',
+    label: 'Mounted Camera',
+    description: 'Primary production path for the fixed external camera and Raspberry Pi image stream.',
+  },
+]
+
+function formatMaybeNumber(value, digits = 2) {
+  if (value == null || Number.isNaN(Number(value))) return '--'
+  return Number(value).toFixed(digits)
+}
 
 export default function AngleTestUpload() {
   const fileInputRef = useRef(null)
   const calibFileInputRef = useRef(null)
+  const cameraCalibFileInputRef = useRef(null)
 
+  const [mode, setMode] = useState('handheld')
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [pressure1, setPressure1] = useState(5.0)
@@ -13,18 +33,37 @@ export default function AngleTestUpload() {
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
   const [calibrated, setCalibrated] = useState(false)
+  const [cameraCalibrated, setCameraCalibrated] = useState(false)
   const [calibMsg, setCalibMsg] = useState('')
+  const [cameraMsg, setCameraMsg] = useState('')
+  const [zeroCalibration, setZeroCalibration] = useState(null)
+  const [cameraCalibration, setCameraCalibration] = useState(null)
 
-  // Poll calibration status on mount
   useEffect(() => {
-    fetch('/api/v1/angle/calibrate/status')
-      .then((r) => r.json())
-      .then((d) => setCalibrated(d.calibrated))
-      .catch(() => {})
+    refreshStatus()
   }, [])
 
-  function handleFileChange(e) {
-    const selected = e.target.files?.[0]
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview)
+    }
+  }, [preview])
+
+  async function refreshStatus() {
+    try {
+      const response = await fetch('/api/v1/angle/calibrate/status')
+      const data = await response.json()
+      setCalibrated(Boolean(data.calibrated))
+      setZeroCalibration(data.zero_calibration ?? null)
+      setCameraCalibration(data.camera_calibration ?? null)
+      setCameraCalibrated(Boolean(data.camera_calibration?.calibrated))
+    } catch {
+      // Leave existing status in place on transient errors.
+    }
+  }
+
+  function handleFileChange(event) {
+    const selected = event.target.files?.[0]
     if (!selected) return
     setFile(selected)
     setResult(null)
@@ -33,35 +72,82 @@ export default function AngleTestUpload() {
     setPreview(URL.createObjectURL(selected))
   }
 
-  const handleCalibFileChange = useCallback(async (e) => {
-    const selected = e.target.files?.[0]
-    if (!selected) return
+  async function handleCalibFileChange(event) {
+    const selectedFiles = Array.from(event.target.files ?? [])
+    if (selectedFiles.length === 0) return
     setLoading('calib')
     setCalibMsg('')
     setError('')
     try {
       const form = new FormData()
-      form.append('image', selected)
+      selectedFiles.forEach((selected) => form.append('images', selected))
+      form.append('mode', mode)
       const res = await fetch('/api/v1/angle/calibrate/zero', { method: 'POST', body: form })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
       const data = await res.json()
-      setCalibrated(data.success)
-      setCalibMsg(data.message)
+      setCalibrated(Boolean(data.success))
+      setCalibMsg(data.message || '')
+      setZeroCalibration(data.calibration ?? null)
+      setCameraCalibration(data.camera_calibration ?? null)
+      setCameraCalibrated(Boolean(data.camera_calibration?.calibrated))
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading('')
-      // Reset input so the same file can be re-uploaded if needed
-      e.target.value = ''
+      event.target.value = ''
     }
-  }, [preview])
+  }
+
+  async function handleCameraCalibrationFileChange(event) {
+    const selected = event.target.files?.[0]
+    if (!selected) return
+    setLoading('camera-calib')
+    setCameraMsg('')
+    setError('')
+    try {
+      const form = new FormData()
+      form.append('file', selected)
+      const res = await fetch('/api/v1/angle/camera-calibration/upload', { method: 'POST', body: form })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const data = await res.json()
+      setCameraMsg(data.message || '')
+      setCameraCalibration(data.camera_calibration ?? null)
+      setCameraCalibrated(Boolean(data.camera_calibration?.calibrated))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading('')
+      event.target.value = ''
+    }
+  }
 
   async function handleClearCalib() {
     setLoading('clear')
+    setError('')
     try {
-      await fetch('/api/v1/angle/calibrate/zero', { method: 'DELETE' })
+      const res = await fetch('/api/v1/angle/calibrate/zero', { method: 'DELETE' })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const data = await res.json()
       setCalibrated(false)
-      setCalibMsg('Calibration cleared.')
+      setCalibMsg(data.message || 'Calibration cleared.')
+      setZeroCalibration(data.zero_calibration ?? null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function handleClearCameraCalibration() {
+    setLoading('clear-camera-calib')
+    setError('')
+    try {
+      const res = await fetch('/api/v1/angle/camera-calibration', { method: 'DELETE' })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const data = await res.json()
+      setCameraMsg(data.message || 'Camera calibration cleared.')
+      setCameraCalibration(data.camera_calibration ?? null)
+      setCameraCalibrated(false)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -77,10 +163,14 @@ export default function AngleTestUpload() {
     try {
       const form = new FormData()
       form.append('image', file)
+      form.append('mode', mode)
       const res = await fetch('/api/v1/angle/detect', { method: 'POST', body: form })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
       const data = await res.json()
-      setCalibrated(data.calibrated)
+      setCalibrated(Boolean(data.calibrated))
+      setZeroCalibration(data.zero_calibration ?? zeroCalibration)
+      setCameraCalibration(data.camera_calibration ?? cameraCalibration)
+      setCameraCalibrated(Boolean(data.camera_calibration?.calibrated))
       setResult({ mode: 'detect', ...data })
     } catch (err) {
       setError(err.message)
@@ -100,10 +190,14 @@ export default function AngleTestUpload() {
       form.append('pressure1', String(pressure1))
       form.append('pressure2', String(pressure2))
       form.append('flow', String(flow))
+      form.append('mode', mode)
       const res = await fetch('/api/v1/angle/ingest', { method: 'POST', body: form })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
       const data = await res.json()
-      setCalibrated(data.calibrated)
+      setCalibrated(Boolean(data.calibrated))
+      setZeroCalibration(data.zero_calibration ?? zeroCalibration)
+      setCameraCalibration(data.camera_calibration ?? cameraCalibration)
+      setCameraCalibrated(Boolean(data.camera_calibration?.calibrated))
       setResult({ mode: 'ingest', ...data })
     } catch (err) {
       setError(err.message)
@@ -116,54 +210,137 @@ export default function AngleTestUpload() {
     <section className="chart-card angle-upload-card">
       <div className="angle-upload-header">
         <div>
-          <h2>Gate Angle — Photo Test</h2>
+          <h2>Gate Angle Photo Test</h2>
           <p className="angle-upload-desc">
-            Upload a photo containing the ArUco marker to test detection.
+            Test the backend ArUco detector with manual images. Mounted mode is the production path; handheld mode is
+            debug-oriented and may reject readings when the camera drifts too much.
           </p>
         </div>
-        <span className={`angle-calib-badge ${calibrated ? 'angle-calib-ok' : 'angle-calib-warn'}`}>
-          {calibrated ? 'Calibrated' : 'Not calibrated'}
-        </span>
+        <div className="angle-status-stack">
+          <span className={`angle-calib-badge ${calibrated ? 'angle-calib-ok' : 'angle-calib-warn'}`}>
+            {calibrated ? 'Zero Calibrated' : 'Zero Not Set'}
+          </span>
+          <span className={`angle-calib-badge ${cameraCalibrated ? 'angle-calib-ok' : 'angle-calib-warn'}`}>
+            {cameraCalibrated ? 'Camera Calibrated' : 'Using Fallback Intrinsics'}
+          </span>
+        </div>
       </div>
 
-      {/* ── Calibration row ─────────────────────────────────────── */}
-      <div className="angle-calib-row">
-        <input
-          type="file"
-          accept="image/*"
-          ref={calibFileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleCalibFileChange}
-        />
-        <button
-          type="button"
-          className={`simulator-button ${calibrated ? '' : 'angle-calib-cta'}`}
-          disabled={loading !== ''}
-          onClick={() => calibFileInputRef.current?.click()}
-          title="Upload a photo of the gate fully closed to set the 0° reference"
-        >
-          {loading === 'calib' ? 'Calibrating…' : calibrated ? 'Re-calibrate Zero' : 'Calibrate Zero (Close Gate First)'}
-        </button>
-        {calibrated && (
+      <div className="angle-mode-grid">
+        {MODE_OPTIONS.map((option) => (
           <button
+            key={option.value}
             type="button"
-            className="angle-clear-btn"
-            disabled={loading !== ''}
-            onClick={handleClearCalib}
+            className={`angle-mode-card ${mode === option.value ? 'angle-mode-card-active' : ''}`}
+            onClick={() => setMode(option.value)}
           >
-            {loading === 'clear' ? '…' : 'Clear'}
+            <span className="angle-mode-title">{option.label}</span>
+            <span className="angle-mode-desc">{option.description}</span>
           </button>
-        )}
-        {calibMsg && <span className="angle-calib-msg">{calibMsg}</span>}
+        ))}
       </div>
 
-      {!calibrated && (
+      <div className="angle-calib-panel">
+        <div className="angle-calib-block">
+          <h3>Zero Calibration</h3>
+          <p className="angle-calib-panel-text">
+            Upload 3-5 images of the closed gate for a more stable zero reference. Single-image calibration still works
+            as a fallback.
+          </p>
+          <div className="angle-calib-row">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              ref={calibFileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleCalibFileChange}
+            />
+            <button
+              type="button"
+              className={`simulator-button ${calibrated ? '' : 'angle-calib-cta'}`}
+              disabled={loading !== ''}
+              onClick={() => calibFileInputRef.current?.click()}
+            >
+              {loading === 'calib' ? 'Calibrating...' : calibrated ? 'Re-calibrate Zero' : 'Calibrate Zero'}
+            </button>
+            {calibrated && (
+              <button
+                type="button"
+                className="angle-clear-btn"
+                disabled={loading !== ''}
+                onClick={handleClearCalib}
+              >
+                {loading === 'clear' ? '...' : 'Clear'}
+              </button>
+            )}
+            {calibMsg && <span className="angle-calib-msg">{calibMsg}</span>}
+          </div>
+          {zeroCalibration?.configured && (
+            <p className="angle-calib-panel-meta">
+              Samples: {zeroCalibration.samples_used ?? '--'} | Mean reprojection error:{' '}
+              {formatMaybeNumber(zeroCalibration.mean_reprojection_error, 3)} px
+            </p>
+          )}
+        </div>
+
+        <div className="angle-calib-block">
+          <h3>Camera Calibration</h3>
+          <p className="angle-calib-panel-text">
+            Upload a JSON calibration file with <code>camera_matrix</code> and <code>dist_coeffs</code> to replace the
+            fallback camera model.
+          </p>
+          <div className="angle-calib-row">
+            <input
+              type="file"
+              accept=".json,application/json"
+              ref={cameraCalibFileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleCameraCalibrationFileChange}
+            />
+            <button
+              type="button"
+              className={`simulator-button ${cameraCalibrated ? '' : 'angle-calib-cta'}`}
+              disabled={loading !== ''}
+              onClick={() => cameraCalibFileInputRef.current?.click()}
+            >
+              {loading === 'camera-calib' ? 'Uploading...' : cameraCalibrated ? 'Replace Camera Calibration' : 'Upload Camera Calibration'}
+            </button>
+            {cameraCalibration?.configured && (
+              <button
+                type="button"
+                className="angle-clear-btn"
+                disabled={loading !== ''}
+                onClick={handleClearCameraCalibration}
+              >
+                {loading === 'clear-camera-calib' ? '...' : 'Clear'}
+              </button>
+            )}
+            {cameraMsg && <span className="angle-calib-msg">{cameraMsg}</span>}
+          </div>
+          <p className="angle-calib-panel-meta">
+            Source: {cameraCalibration?.source ?? 'synthetic'} | Profile:{' '}
+            {cameraCalibration?.image_size
+              ? `${cameraCalibration.image_size.width}x${cameraCalibration.image_size.height}`
+              : 'not provided'}
+          </p>
+        </div>
+      </div>
+
+      {mode === 'handheld' && (
         <p className="angle-calib-hint">
-          Angles shown below are raw (not zeroed). Calibrate first for accurate readings.
+          Handheld mode is intentionally conservative. If the viewpoint drift is too large compared with the zero
+          calibration image, the backend will reject the angle instead of returning a misleading value.
         </p>
       )}
 
-      {/* ── Photo upload ─────────────────────────────────────────── */}
+      {!cameraCalibrated && (
+        <p className="angle-calib-hint">
+          Real camera calibration is not loaded yet. The detector can still run, but pose stability will be weaker
+          because it must fall back to synthetic intrinsics.
+        </p>
+      )}
+
       <div className="angle-upload-row">
         <input
           type="file"
@@ -172,11 +349,7 @@ export default function AngleTestUpload() {
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />
-        <button
-          type="button"
-          className="simulator-button"
-          onClick={() => fileInputRef.current?.click()}
-        >
+        <button type="button" className="simulator-button" onClick={() => fileInputRef.current?.click()}>
           {file ? 'Change Photo' : 'Choose Photo'}
         </button>
         {file && <span className="angle-upload-filename">{file.name}</span>}
@@ -200,7 +373,7 @@ export default function AngleTestUpload() {
                 min="0"
                 max="20"
                 value={pressure1}
-                onChange={(e) => setPressure1(parseFloat(e.target.value))}
+                onChange={(event) => setPressure1(parseFloat(event.target.value))}
               />
             </label>
             <label className="angle-sensor-label">
@@ -212,7 +385,7 @@ export default function AngleTestUpload() {
                 min="0"
                 max="20"
                 value={pressure2}
-                onChange={(e) => setPressure2(parseFloat(e.target.value))}
+                onChange={(event) => setPressure2(parseFloat(event.target.value))}
               />
             </label>
             <label className="angle-sensor-label">
@@ -224,7 +397,7 @@ export default function AngleTestUpload() {
                 min="0"
                 max="30"
                 value={flow}
-                onChange={(e) => setFlow(parseFloat(e.target.value))}
+                onChange={(event) => setFlow(parseFloat(event.target.value))}
               />
             </label>
           </div>
@@ -236,7 +409,7 @@ export default function AngleTestUpload() {
               disabled={loading !== ''}
               onClick={handleDetect}
             >
-              {loading === 'detect' ? 'Detecting…' : 'Detect Angle Only'}
+              {loading === 'detect' ? 'Detecting...' : 'Detect Angle Only'}
             </button>
             <button
               type="button"
@@ -244,7 +417,7 @@ export default function AngleTestUpload() {
               disabled={loading !== ''}
               onClick={handleIngest}
             >
-              {loading === 'ingest' ? 'Ingesting…' : 'Ingest Full Frame'}
+              {loading === 'ingest' ? 'Ingesting...' : 'Ingest Full Frame'}
             </button>
           </div>
         </>
@@ -255,12 +428,30 @@ export default function AngleTestUpload() {
       {result && (
         <div className="angle-result">
           {result.detected === false ? (
-            <span className="angle-result-none">No ArUco marker detected in this photo.</span>
+            <span className="angle-result-none">{result.warning || 'No reliable ArUco marker pose detected in this photo.'}</span>
           ) : (
             <>
               <div className="angle-result-row">
                 <span className="angle-result-label">Gate Angle</span>
                 <span className="angle-result-value">{result.gate_angle?.toFixed(1)}°</span>
+              </div>
+              <div className="angle-result-row">
+                <span className="angle-result-label">Confidence</span>
+                <span className="angle-result-value">{formatMaybeNumber(result.confidence, 3)}</span>
+              </div>
+              <div className="angle-result-row">
+                <span className="angle-result-label">Mode</span>
+                <span className="angle-result-value">{result.mode}</span>
+              </div>
+              <div className="angle-result-row">
+                <span className="angle-result-label">Viewpoint Consistent</span>
+                <span className="angle-result-value">
+                  {result.viewpoint_consistent == null ? '--' : result.viewpoint_consistent ? 'Yes' : 'No'}
+                </span>
+              </div>
+              <div className="angle-result-row">
+                <span className="angle-result-label">Reprojection Error</span>
+                <span className="angle-result-value">{formatMaybeNumber(result.reprojection_error, 3)} px</span>
               </div>
               {result.mode === 'ingest' && (
                 <div className="angle-result-row">
@@ -268,11 +459,7 @@ export default function AngleTestUpload() {
                   <span className="angle-result-value">{result.state}</span>
                 </div>
               )}
-              {!result.calibrated && (
-                <p className="angle-calib-hint" style={{ marginTop: 8 }}>
-                  Raw angle (uncalibrated) — calibrate zero for accurate readings.
-                </p>
-              )}
+              {result.warning && <p className="angle-result-warning">{result.warning}</p>}
             </>
           )}
         </div>

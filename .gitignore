@@ -76,4 +76,6 @@ coverage/
 *.bak
 .cache/
 /backend/reports/generated
+/backend/angle_calibration.json
+/backend/camera_calibration.json
 /.claude
