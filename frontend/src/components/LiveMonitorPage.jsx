@@ -4,6 +4,8 @@ import DataTable from './DataTable.jsx'
 import DetectionSummary from './DetectionSummary.jsx'
 import FlowChart from './FlowChart.jsx'
 import PressureChart from './PressureChart.jsx'
+// TODO: Remove PiCameraFeed component after testing
+import PiCameraFeed from './PiCameraFeed.jsx'
 import SimulatorControls from './SimulatorControls.jsx'
 import StateBadge from './StateBadge.jsx'
 
@@ -40,6 +42,10 @@ export default function LiveMonitorPage({
       <AngleChart data={buffer} />
       <DetectionSummary buffer={buffer} />
       <AngleTestUpload />
+      <section className="chart-card">
+        <h2>Pi Camera Feed (Testing)</h2>
+        <PiCameraFeed />
+      </section>
       <SimulatorControls />
       <DataTable
         data={previewRows}

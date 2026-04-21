@@ -123,6 +123,7 @@ async def pi_ingest(payload: PiPayload, request: Request) -> dict:
 
     state = _pi_processor.evaluate(sensor_payload)
     await request.app.state.bus.publish(state)
+    request.app.state.latest_pi_image = payload.image_b64
 
     log.info(
         "pi_ingest | angle=%s state=%s P1=%.4f P2=%.4f flow=%.3f GPM",
@@ -146,6 +147,16 @@ async def pi_session_stop(request: Request) -> dict:
     if closed_id is None:
         return {"status": "no_active_session"}
     return {"status": "stopped", "session_id": closed_id}
+
+
+@router.get("/latest-image")
+async def pi_latest_image(request: Request) -> dict:
+    """Return the latest base64 image sent by the Pi."""
+    image_b64 = getattr(request.app.state, "latest_pi_image", None)
+    return {
+        "image_b64": image_b64,
+        "available": image_b64 is not None,
+    }
 
 
 @router.get("/status")

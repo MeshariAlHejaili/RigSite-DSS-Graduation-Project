@@ -54,6 +54,7 @@ async def on_startup() -> None:
     app.state.broadcaster = broadcaster
     app.state.simulator = SimulatorController()
     app.state.pi_session_id = None  # managed by pi_ingest router
+    app.state.latest_pi_image = None
 
 
 @app.on_event("shutdown")

@@ -4,6 +4,14 @@
 - Docker Desktop
 - Python 3.11+
 
+## Raspberry Pi Discovery
+- The Pi sender now auto-discovers the RigLab backend when the Pi and laptop are on the same Wi-Fi.
+- By default it scans the local subnet for `http://<laptop>:18000/api/v1/pi/status` and uses the first healthy RigLab backend it finds.
+- The laptop must expose host port `18000` and allow inbound traffic to that port through Windows Firewall or equivalent.
+- Optional Pi-side overrides:
+  - `RIGSITE_BACKEND_PORT=18000`
+  - `RIGSITE_BACKEND_HOST=192.168.x.x` or a hostname to skip discovery and connect directly
+
 ## RigLab-AI Docker Stack
 
 This project now uses its own isolated Compose stack so it can live alongside the earlier Claude stack without port collisions.
