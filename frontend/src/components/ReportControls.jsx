@@ -44,7 +44,7 @@ export default function ReportControls() {
     <section className="chart-card report-card">
       <div className="report-header">
         <p className="report-description">
-          Generate the incident snapshot for the latest anomaly or the last-24-hours daily summary.
+          Generate the incident snapshot for the latest kick/loss incident episode or the current local-day summary.
         </p>
       </div>
 

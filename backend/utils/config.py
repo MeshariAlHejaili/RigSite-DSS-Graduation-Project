@@ -25,6 +25,7 @@ DATABASE_URL = os.getenv(
 
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
+REPORT_TIMEZONE = os.getenv("REPORT_TIMEZONE", "Asia/Riyadh")
 
 FLOW_BASELINE = float(os.getenv("FLOW_BASELINE", "10.0"))
 ANOMALY_THRESHOLD = float(os.getenv("ANOMALY_THRESHOLD", "0.15"))
