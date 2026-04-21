@@ -1,13 +1,13 @@
 import AngleChart from './AngleChart.jsx'
-import AngleTestUpload from './AngleTestUpload.jsx'
 import DataTable from './DataTable.jsx'
 import DetectionSummary from './DetectionSummary.jsx'
 import FlowChart from './FlowChart.jsx'
-import PressureChart from './PressureChart.jsx'
+import MudWeightChart from './MudWeightChart.jsx'
 // TODO: Remove PiCameraFeed component after testing
 import PiCameraFeed from './PiCameraFeed.jsx'
-import SimulatorControls from './SimulatorControls.jsx'
+import PressureChart from './PressureChart.jsx'
 import StateBadge from './StateBadge.jsx'
+import ViscosityChart from './ViscosityChart.jsx'
 
 export default function LiveMonitorPage({
   buffer,
@@ -39,14 +39,17 @@ export default function LiveMonitorPage({
         <PressureChart data={buffer} />
       </section>
 
+      <section className="charts-row">
+        <MudWeightChart data={buffer} />
+        <ViscosityChart data={buffer} />
+      </section>
+
       <AngleChart data={buffer} />
       <DetectionSummary buffer={buffer} />
-      <AngleTestUpload />
       <section className="chart-card">
         <h2>Pi Camera Feed (Testing)</h2>
         <PiCameraFeed />
       </section>
-      <SimulatorControls />
       <DataTable
         data={previewRows}
         title="Quick Raw Data Preview"

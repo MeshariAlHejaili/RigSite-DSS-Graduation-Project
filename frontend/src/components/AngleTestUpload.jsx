@@ -1,17 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-const MODE_OPTIONS = [
-  {
-    value: 'handheld',
-    label: 'Handheld Upload',
-    description: 'Best-effort debug path. Camera drift is checked and may downgrade or reject the reading.',
-  },
-  {
-    value: 'mounted',
-    label: 'Mounted Camera',
-    description: 'Primary production path for the fixed external camera and Raspberry Pi image stream.',
-  },
-]
+const mode = 'mounted'
 
 function formatMaybeNumber(value, digits = 2) {
   if (value == null || Number.isNaN(Number(value))) return '--'
@@ -23,7 +12,6 @@ export default function AngleTestUpload() {
   const calibFileInputRef = useRef(null)
   const cameraCalibFileInputRef = useRef(null)
 
-  const [mode, setMode] = useState('handheld')
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [pressure1, setPressure1] = useState(5.0)
@@ -212,8 +200,8 @@ export default function AngleTestUpload() {
         <div>
           <h2>Gate Angle Photo Test</h2>
           <p className="angle-upload-desc">
-            Test the backend ArUco detector with manual images. Mounted mode is the production path; handheld mode is
-            debug-oriented and may reject readings when the camera drifts too much.
+            Test the backend ArUco detector with manual images. Uses the mounted camera production path for reliable
+            fixed-viewpoint angle detection.
           </p>
         </div>
         <div className="angle-status-stack">
@@ -224,20 +212,6 @@ export default function AngleTestUpload() {
             {cameraCalibrated ? 'Camera Calibrated' : 'Using Fallback Intrinsics'}
           </span>
         </div>
-      </div>
-
-      <div className="angle-mode-grid">
-        {MODE_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className={`angle-mode-card ${mode === option.value ? 'angle-mode-card-active' : ''}`}
-            onClick={() => setMode(option.value)}
-          >
-            <span className="angle-mode-title">{option.label}</span>
-            <span className="angle-mode-desc">{option.description}</span>
-          </button>
-        ))}
       </div>
 
       <div className="angle-calib-panel">
@@ -326,13 +300,6 @@ export default function AngleTestUpload() {
           </p>
         </div>
       </div>
-
-      {mode === 'handheld' && (
-        <p className="angle-calib-hint">
-          Handheld mode is intentionally conservative. If the viewpoint drift is too large compared with the zero
-          calibration image, the backend will reject the angle instead of returning a misleading value.
-        </p>
-      )}
 
       {!cameraCalibrated && (
         <p className="angle-calib-hint">

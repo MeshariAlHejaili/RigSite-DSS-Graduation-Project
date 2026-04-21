@@ -245,4 +245,8 @@ def storage_record_to_payload(record: dict[str, Any]) -> dict[str, Any]:
             else payload.get("normal_mud_weight")
         )
 
+    # Ignore legacy/extra DB columns to keep history endpoints backward-compatible.
+    allowed_fields = set(TelemetryRecordResponse.model_fields.keys())
+    payload = {key: value for key, value in payload.items() if key in allowed_fields}
+
     return TelemetryRecordResponse.model_validate(payload).model_dump(mode="json")

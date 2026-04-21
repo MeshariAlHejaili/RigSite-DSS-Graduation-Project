@@ -6,6 +6,7 @@ import HistoryPage from './components/HistoryPage.jsx'
 import LiveMonitorPage from './components/LiveMonitorPage.jsx'
 import ReportsPage from './components/ReportsPage.jsx'
 import SettingsPage from './components/SettingsPage.jsx'
+import SimulationPage from './components/SimulationPage.jsx'
 
 const BUFFER_SIZE = 60
 
@@ -14,6 +15,7 @@ const ROUTES = {
   RAW_DATA: 'raw-data',
   REPORTS: 'reports',
   SETTINGS: 'settings',
+  SIMULATION: 'simulation',
 }
 
 const NAV_ITEMS = [
@@ -21,6 +23,7 @@ const NAV_ITEMS = [
   { id: ROUTES.RAW_DATA, label: 'History / Raw Data' },
   { id: ROUTES.REPORTS, label: 'Reports' },
   { id: ROUTES.SETTINGS, label: 'Settings' },
+  { id: ROUTES.SIMULATION, label: 'Simulation' },
 ]
 
 function getRouteFromHash() {
@@ -28,6 +31,7 @@ function getRouteFromHash() {
   if (hash === '#/raw-data') return ROUTES.RAW_DATA
   if (hash === '#/reports') return ROUTES.REPORTS
   if (hash === '#/settings') return ROUTES.SETTINGS
+  if (hash === '#/simulation') return ROUTES.SIMULATION
   return ROUTES.LIVE
 }
 
@@ -35,6 +39,7 @@ function hashForRoute(route) {
   if (route === ROUTES.RAW_DATA) return '#/raw-data'
   if (route === ROUTES.REPORTS) return '#/reports'
   if (route === ROUTES.SETTINGS) return '#/settings'
+  if (route === ROUTES.SIMULATION) return '#/simulation'
   return '#/live'
 }
 
@@ -109,6 +114,7 @@ export default function App() {
         {activeRoute === ROUTES.RAW_DATA && <HistoryPage rawRows={rawDataRows} latestRecord={latestRecord} />}
         {activeRoute === ROUTES.REPORTS && <ReportsPage />}
         {activeRoute === ROUTES.SETTINGS && <SettingsPage />}
+        {activeRoute === ROUTES.SIMULATION && <SimulationPage />}
         {activeRoute === ROUTES.LIVE && (
           <LiveMonitorPage
             buffer={buffer}
