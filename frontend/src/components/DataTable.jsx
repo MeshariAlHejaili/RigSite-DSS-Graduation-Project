@@ -1,8 +1,15 @@
 const STATE_COLORS = {
-  NORMAL: 'rgba(46, 125, 50, 0.12)',
-  KICK_RISK: 'rgba(198, 40, 40, 0.12)',
-  LOSS_RISK: 'rgba(239, 108, 0, 0.12)',
-  SENSOR_FAULT: 'rgba(97, 97, 97, 0.18)',
+  NORMAL: 'rgba(46, 125, 50, 0.10)',
+  KICK_RISK: 'rgba(198, 40, 40, 0.10)',
+  LOSS_RISK: 'rgba(239, 108, 0, 0.10)',
+  SENSOR_FAULT: 'rgba(97, 97, 97, 0.14)',
+}
+
+const STATE_CHIP_CLASSES = {
+  NORMAL: 'state-chip state-chip-normal',
+  KICK_RISK: 'state-chip state-chip-kick',
+  LOSS_RISK: 'state-chip state-chip-loss',
+  SENSOR_FAULT: 'state-chip state-chip-fault',
 }
 
 const COLUMNS = [
@@ -41,12 +48,23 @@ function formatTime(row) {
   return new Date(value).toLocaleTimeString()
 }
 
+function StateChip({ value }) {
+  if (!value) return '--'
+  const chipClass = STATE_CHIP_CLASSES[value] ?? 'state-chip'
+  const label = value.replace(/_/g, ' ')
+  return <span className={chipClass}>{label}</span>
+}
+
 function getCellValue(row, column) {
   if (column.key === 'time') {
     return formatTime(row)
   }
 
-  if (column.key === 'state' || column.key === 'sensor_status') {
+  if (column.key === 'state') {
+    return <StateChip value={row.state} />
+  }
+
+  if (column.key === 'sensor_status') {
     return row[column.key] ?? '--'
   }
 
@@ -84,7 +102,10 @@ export default function DataTable({
           <tbody>
             {hasData ? (
               data.map((row, index) => (
-                <tr key={`${row.timestamp}-${index}`} style={{ background: STATE_COLORS[row.state] ?? 'transparent' }}>
+                <tr
+                  key={`${row.timestamp}-${index}`}
+                  style={STATE_COLORS[row.state] ? { background: STATE_COLORS[row.state] } : undefined}
+                >
                   {COLUMNS.map((column) => (
                     <td key={`${column.key}-${index}`} className={column.numeric ? 'data-table-number' : ''}>
                       {getCellValue(row, column)}

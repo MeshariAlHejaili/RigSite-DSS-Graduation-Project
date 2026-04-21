@@ -19,6 +19,7 @@ export default function AngleChart({ data }) {
   return (
     <section className="chart-card">
       <h2>Gate Angle Chart</h2>
+      <p className="chart-subtitle">Degrees — ArUco marker pose (0° = closed gate)</p>
       <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

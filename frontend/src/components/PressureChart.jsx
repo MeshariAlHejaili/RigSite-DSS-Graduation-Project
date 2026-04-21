@@ -20,6 +20,7 @@ export default function PressureChart({ data }) {
   return (
     <section className="chart-card">
       <h2>Pressure Chart</h2>
+      <p className="chart-subtitle">PSI — upstream (P1), downstream (P2), and differential (ΔP)</p>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

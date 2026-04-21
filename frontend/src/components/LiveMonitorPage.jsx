@@ -14,24 +14,9 @@ export default function LiveMonitorPage({
   latestRecord,
   previewRows,
   showDebugStatus,
-  onToggleDebugStatus,
 }) {
   return (
     <>
-      <section className="chart-card live-toolbar">
-        <div className="live-toolbar-row">
-          <h2>Live Monitor</h2>
-          <label className="debug-toggle">
-            <input
-              type="checkbox"
-              checked={showDebugStatus}
-              onChange={(event) => onToggleDebugStatus(event.target.checked)}
-            />
-            <span>Debug / Raw Status</span>
-          </label>
-        </div>
-      </section>
-
       <StateBadge data={latestRecord} showDebugStatus={showDebugStatus} />
 
       <section className="charts-row">

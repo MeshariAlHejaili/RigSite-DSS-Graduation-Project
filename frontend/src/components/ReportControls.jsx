@@ -38,15 +38,14 @@ export default function ReportControls() {
     }
   }
 
+  const isError = status && !status.startsWith('Downloaded')
+
   return (
     <section className="chart-card report-card">
       <div className="report-header">
-        <div>
-          <h2>Reports</h2>
-          <p className="report-description">
-            Generate the incident snapshot for the latest anomaly or the last-24-hours daily summary.
-          </p>
-        </div>
+        <p className="report-description">
+          Generate the incident snapshot for the latest anomaly or the last-24-hours daily summary.
+        </p>
       </div>
 
       <div className="report-actions">
@@ -68,7 +67,11 @@ export default function ReportControls() {
         </button>
       </div>
 
-      {status ? <div className="report-status">{status}</div> : null}
+      {status ? (
+        <div className={`feedback-panel ${isError ? 'feedback-panel-error' : 'feedback-panel-ok'}`}>
+          {status}
+        </div>
+      ) : null}
     </section>
   )
 }

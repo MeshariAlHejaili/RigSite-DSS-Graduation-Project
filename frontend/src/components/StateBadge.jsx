@@ -29,18 +29,22 @@ const STATE_CONFIG = {
   NORMAL: {
     background: '#2e7d32',
     text: 'NORMAL - System Stable',
+    alarm: false,
   },
   KICK_RISK: {
     background: '#c62828',
     text: (data) => buildKickLossText('WARNING KICK RISK', data),
+    alarm: true,
   },
   LOSS_RISK: {
     background: '#ef6c00',
     text: (data) => buildKickLossText('WARNING LOSS RISK', data),
+    alarm: true,
   },
   SENSOR_FAULT: {
     background: '#616161',
     text: 'WARNING SENSOR FAULT - Check Hardware',
+    alarm: false,
   },
 }
 
@@ -62,9 +66,10 @@ export default function StateBadge({ data, showDebugStatus = false }) {
 
   const config = STATE_CONFIG[data.state] ?? STATE_CONFIG.SENSOR_FAULT
   const title = typeof config.text === 'function' ? config.text(data) : config.text
+  const badgeClass = `state-badge${config.alarm ? ' state-badge-alarm' : ''}`
 
   return (
-    <section className="state-badge" style={{ background: config.background }}>
+    <section className={badgeClass} style={{ background: config.background }}>
       <span className="state-title">{title}</span>
       <span className="state-subtitle">
         Last update: {formatTime(data.processed_at)}

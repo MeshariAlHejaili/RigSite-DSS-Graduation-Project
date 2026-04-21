@@ -42,6 +42,7 @@ export default function FlowChart({ data }) {
   return (
     <section className="chart-card">
       <h2>Flow Chart</h2>
+      <p className="chart-subtitle">L/min — actual vs. expected with ±15% thresholds</p>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

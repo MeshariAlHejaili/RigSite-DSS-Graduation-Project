@@ -20,6 +20,7 @@ export default function MudWeightChart({ data }) {
   return (
     <section className="chart-card">
       <h2>Mud Weight Chart</h2>
+      <p className="chart-subtitle">PPG — active display weight, normal baseline, and with-cuttings estimate</p>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

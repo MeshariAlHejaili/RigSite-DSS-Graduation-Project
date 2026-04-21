@@ -20,6 +20,7 @@ export default function ViscosityChart({ data }) {
   return (
     <section className="chart-card">
       <h2>Viscosity Chart</h2>
+      <p className="chart-subtitle">Pa·s — mud return line viscosity</p>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

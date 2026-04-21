@@ -98,18 +98,31 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        <nav className="page-nav" aria-label="Primary">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`page-nav-button ${activeRoute === item.id ? 'page-nav-button-active' : ''}`}
-              onClick={() => handleNavigate(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <div className="page-nav-row">
+          <nav className="page-nav" aria-label="Primary">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`page-nav-button ${activeRoute === item.id ? 'page-nav-button-active' : ''}`}
+                onClick={() => handleNavigate(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          {activeRoute === ROUTES.LIVE && (
+            <label className="debug-toggle">
+              <input
+                type="checkbox"
+                checked={showDebugStatus}
+                onChange={(event) => setShowDebugStatus(event.target.checked)}
+              />
+              <span>Debug / Raw Status</span>
+            </label>
+          )}
+        </div>
 
         {activeRoute === ROUTES.RAW_DATA && <HistoryPage rawRows={rawDataRows} latestRecord={latestRecord} />}
         {activeRoute === ROUTES.REPORTS && <ReportsPage />}
@@ -121,7 +134,6 @@ export default function App() {
             latestRecord={latestRecord}
             previewRows={lastTwentyRecords}
             showDebugStatus={showDebugStatus}
-            onToggleDebugStatus={setShowDebugStatus}
           />
         )}
       </main>
