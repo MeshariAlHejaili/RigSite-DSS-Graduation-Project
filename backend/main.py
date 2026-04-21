@@ -24,6 +24,7 @@ from routers import config as config_router
 from routers import reports as reports_router
 from routers import simulator as simulator_router
 from routers import angle as angle_router
+from routers import pi_ingest as pi_ingest_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -52,6 +53,7 @@ async def on_startup() -> None:
     app.state.bus = bus
     app.state.broadcaster = broadcaster
     app.state.simulator = SimulatorController()
+    app.state.pi_session_id = None  # managed by pi_ingest router
 
 
 @app.on_event("shutdown")
@@ -67,6 +69,7 @@ app.include_router(config_router.router, prefix="/api/v1")
 app.include_router(reports_router.router, prefix="/api/v1")
 app.include_router(simulator_router.router, prefix="/api/v1")
 app.include_router(angle_router.router, prefix="/api/v1")
+app.include_router(pi_ingest_router.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")
