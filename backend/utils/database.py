@@ -123,6 +123,7 @@ INSERT INTO pete_constants (key, value) VALUES
     ('flow_baseline', 10.0),
     ('anomaly_threshold', 0.15),
     ('anomaly_window', 2),
+    ('delta_h_ft', 1.0),
     ('cuttings_density', 21.0),
     ('cuttings_volume_fraction', 0.0),
     ('suspension_factor', 1.0)

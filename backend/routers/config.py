@@ -70,11 +70,23 @@ async def update_detection_config(body: DetectionConfigUpdateRequest):
     if not updates:
         raise HTTPException(400, "provide at least one detection config field")
 
-    for key, value in updates.items():
-        try:
-            cfg.set_detection_setting(key, value)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+    pool = database.get_pool()
+    async with pool.acquire() as conn:
+        for key, value in updates.items():
+            try:
+                if key == "delta_h_ft":
+                    await conn.execute(
+                        """
+                        INSERT INTO pete_constants (key, value, updated_at)
+                        VALUES ('delta_h_ft', $1, NOW())
+                        ON CONFLICT (key)
+                        DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                        """,
+                        float(value),
+                    )
+                cfg.set_detection_setting(key, value)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
 
     return cfg.get_detection_settings()
 

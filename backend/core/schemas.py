@@ -138,6 +138,7 @@ class RuntimeConfigResponse(BaseModel):
     flow_baseline: float
     anomaly_threshold: float
     anomaly_window: int
+    delta_h_ft: float
     cuttings_density: float
     cuttings_volume_fraction: float
     suspension_factor: float
@@ -150,6 +151,7 @@ class RuntimeConfigUpdateRequest(BaseModel):
     flow_baseline: float | None = None
     anomaly_threshold: float | None = None
     anomaly_window: int | None = None
+    delta_h_ft: float | None = None
     cuttings_density: float | None = None
     cuttings_volume_fraction: float | None = None
     suspension_factor: float | None = None

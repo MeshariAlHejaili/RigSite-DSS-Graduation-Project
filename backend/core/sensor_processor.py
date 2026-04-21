@@ -191,7 +191,7 @@ class SensorProcessor(IDetector):
         metrics = engineering.calculate_metrics(
             engineering.EngineeringInputs(
                 pressure_diff_psi=pressure_diff,
-                delta_h_ft=float(detection_settings.get("delta_h_ft", 1.0)),
+                delta_h_ft=float(pete.get("delta_h_ft", 1.0)),
                 pipe_diameter_m=float(viscosity_constants["pipe_diameter_m"]),
                 sensor_spacing_m=float(viscosity_constants["sensor_spacing_m"]),
                 fluid_velocity_m_s=float(viscosity_constants["fluid_velocity_m_s"]),

@@ -52,6 +52,7 @@ export default function SettingsPage() {
   const [cuttingsDensity, setCuttingsDensity] = useState('21.0')
   const [cuttingsVolumeFraction, setCuttingsVolumeFraction] = useState('0.08')
   const [suspensionFactor, setSuspensionFactor] = useState('1.00')
+  const [deltaH, setDeltaH] = useState('1.0')
 
   const [fieldErrors, setFieldErrors] = useState({})
   const [statusMessage, setStatusMessage] = useState('')
@@ -86,6 +87,7 @@ export default function SettingsPage() {
         setCuttingsDensity(String(runtimeData.cuttings_density ?? '21.0'))
         setCuttingsVolumeFraction(String(runtimeData.cuttings_volume_fraction ?? '0.08'))
         setSuspensionFactor(String(runtimeData.suspension_factor ?? '1.00'))
+        setDeltaH(String(runtimeData.delta_h_ft ?? detectionData.delta_h_ft ?? '1.0'))
 
         setDetectionMode(normalizeDetectionMode(detectionData.detection_mode))
         setBaselineAngle(detectionData.baseline_angle ?? null)
@@ -116,6 +118,7 @@ export default function SettingsPage() {
     const cuttingsDensityValue = parseFloat(cuttingsDensity)
     const cuttingsVolumeFractionValue = parseFloat(cuttingsVolumeFraction)
     const suspensionFactorValue = parseFloat(suspensionFactor)
+    const deltaHValue = parseFloat(deltaH)
 
     if (Number.isNaN(cuttingsDensityValue) || cuttingsDensityValue <= 0) {
       errors.cuttings_density = 'Cuttings density must be a positive number.'
@@ -131,6 +134,10 @@ export default function SettingsPage() {
 
     if (Number.isNaN(suspensionFactorValue) || suspensionFactorValue <= 0) {
       errors.suspension_factor = 'Suspension factor must be greater than 0.'
+    }
+
+    if (Number.isNaN(deltaHValue) || deltaHValue <= 0) {
+      errors.delta_h_ft = 'Delta h must be greater than 0.'
     }
 
     return errors
@@ -152,6 +159,7 @@ export default function SettingsPage() {
 
     const runtimePayload = {
       display_mud_weight: displayMudWeight,
+      delta_h_ft: parseFloat(deltaH),
       cuttings_density: parseFloat(cuttingsDensity),
       cuttings_volume_fraction: parseFloat(cuttingsVolumeFraction),
       suspension_factor: parseFloat(suspensionFactor),
@@ -189,8 +197,12 @@ export default function SettingsPage() {
           throw new Error(payload.detail || 'Failed to save detection settings.')
         }
 
-        const detectionData = await detectionResponse.json()
+        const [runtimeData, detectionData] = await Promise.all([
+          runtimeResponse.json(),
+          detectionResponse.json(),
+        ])
         setDetectionMode(normalizeDetectionMode(detectionData.detection_mode))
+        setDeltaH(String(runtimeData.delta_h_ft ?? detectionData.delta_h_ft ?? deltaH))
         setBaselineAngle(detectionData.baseline_angle ?? null)
         setBaselineMudWeight(detectionData.baseline_mud_weight ?? null)
         setStatusMessage(`Settings applied at ${new Date().toLocaleTimeString()}.`)
@@ -306,10 +318,28 @@ export default function SettingsPage() {
       <section className="chart-card settings-section">
         <h2>PETE Engineering Inputs</h2>
         <p className="settings-hint">
-          Inputs required by petroleum engineers for cuttings-adjusted mud weight calculations.
+          Inputs required by petroleum engineers for mud-weight calculations. Mud weight uses MW = dP / (0.052 * delta_h).
         </p>
 
         <div className="settings-form-grid">
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="delta-h-input">
+              delta_h
+            </label>
+            <p className="settings-field-hint">Vertical height difference used as delta_h in MW = dP / (0.052 * delta_h).</p>
+            <input
+              id="delta-h-input"
+              type="number"
+              className="settings-input"
+              value={deltaH}
+              step="0.1"
+              min="0.001"
+              onChange={(event) => setDeltaH(event.target.value)}
+            />
+            <span className="settings-input-unit">ft</span>
+            {fieldErrors.delta_h_ft && <span className="settings-error">{fieldErrors.delta_h_ft}</span>}
+          </div>
+
           <div className="settings-field">
             <label className="settings-label" htmlFor="cuttings-density-input">
               cuttings_density

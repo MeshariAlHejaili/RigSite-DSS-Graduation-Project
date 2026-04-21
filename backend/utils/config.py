@@ -30,6 +30,7 @@ REPORT_TIMEZONE = os.getenv("REPORT_TIMEZONE", "Asia/Riyadh")
 FLOW_BASELINE = float(os.getenv("FLOW_BASELINE", "10.0"))
 ANOMALY_THRESHOLD = float(os.getenv("ANOMALY_THRESHOLD", "0.15"))
 ANOMALY_WINDOW = int(os.getenv("ANOMALY_WINDOW", "2"))
+DELTA_H_FT = float(os.getenv("DELTA_H_FT", os.getenv("DELTA_H", "1.0")))
 CUTTINGS_DENSITY = float(os.getenv("CUTTINGS_DENSITY", "21.0"))
 CUTTINGS_VOLUME_FRACTION = float(os.getenv("CUTTINGS_VOLUME_FRACTION", "0.0"))
 SUSPENSION_FACTOR = float(os.getenv("SUSPENSION_FACTOR", "1.0"))
@@ -44,6 +45,7 @@ PETE_KEYS = (
     "flow_baseline",
     "anomaly_threshold",
     "anomaly_window",
+    "delta_h_ft",
     "cuttings_density",
     "cuttings_volume_fraction",
     "suspension_factor",
@@ -98,6 +100,8 @@ def coerce_pete_value(key: str, value: float | int | str) -> float | int:
         return max(1, int(numeric))
     if key == "cuttings_volume_fraction":
         return min(max(numeric, 0.0), 1.0)
+    if key == "delta_h_ft":
+        return max(numeric, 0.001)
     if key == "suspension_factor":
         return max(numeric, 0.0)
     return numeric
@@ -107,6 +111,7 @@ PETE: dict[str, float | int] = {
     "flow_baseline": coerce_pete_value("flow_baseline", FLOW_BASELINE),
     "anomaly_threshold": coerce_pete_value("anomaly_threshold", ANOMALY_THRESHOLD),
     "anomaly_window": coerce_pete_value("anomaly_window", ANOMALY_WINDOW),
+    "delta_h_ft": coerce_pete_value("delta_h_ft", DELTA_H_FT),
     "cuttings_density": coerce_pete_value("cuttings_density", CUTTINGS_DENSITY),
     "cuttings_volume_fraction": coerce_pete_value("cuttings_volume_fraction", CUTTINGS_VOLUME_FRACTION),
     "suspension_factor": coerce_pete_value("suspension_factor", SUSPENSION_FACTOR),
@@ -171,13 +176,10 @@ def interpolate_expected_flow(gate_angle: float, flow_baseline: float | None = N
     interpolated = lower_flow + (upper_flow - lower_flow) * ratio
     return round(interpolated, 4)
 
-
 DETECTION_MODE = _coerce_detection_mode(os.getenv("DETECTION_MODE", "angle_only"))
-DELTA_H_FT = float(os.getenv("DELTA_H_FT", os.getenv("DELTA_H", "1.0")))
 
 DETECTION_SETTINGS: dict[str, float | int | str | None] = {
     "detection_mode": DETECTION_MODE,
-    "delta_h_ft": max(0.001, DELTA_H_FT),
     "baseline_angle": None,
     "baseline_mud_weight": None,
     "baseline_version": 0,
@@ -185,7 +187,10 @@ DETECTION_SETTINGS: dict[str, float | int | str | None] = {
 
 
 def get_detection_settings() -> dict[str, float | int | str | None]:
-    return dict(DETECTION_SETTINGS)
+    return {
+        **DETECTION_SETTINGS,
+        "delta_h_ft": float(PETE["delta_h_ft"]),
+    }
 
 
 def set_detection_setting(key: str, value: object) -> None:
@@ -193,7 +198,7 @@ def set_detection_setting(key: str, value: object) -> None:
         DETECTION_SETTINGS["detection_mode"] = _coerce_detection_mode(str(value))
         return
     if key in {"delta_h_ft", "delta_h"}:
-        DETECTION_SETTINGS["delta_h_ft"] = max(0.001, float(value))  # type: ignore[arg-type]
+        set_pete_constant("delta_h_ft", float(value))  # type: ignore[arg-type]
         return
     raise ValueError(f"Unknown detection setting: {key!r}")
 
