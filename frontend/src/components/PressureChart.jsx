@@ -26,7 +26,7 @@ export default function PressureChart({ data }) {
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="timestamp" tickFormatter={formatTime} minTickGap={24} />
           <YAxis />
-          <Tooltip labelFormatter={formatTime} formatter={(value) => Number(value).toFixed(2)} />
+          <Tooltip labelFormatter={formatTime} formatter={(value) => Number(value).toFixed(3)} />
           <Legend />
           <Line type="monotone" dataKey="pressure1" name="P1 Upstream" stroke="#0d47a1" strokeWidth={3} dot={false} isAnimationActive={false} />
           <Line type="monotone" dataKey="pressure2" name="P2 Downstream" stroke="#42a5f5" strokeWidth={3} dot={false} isAnimationActive={false} />

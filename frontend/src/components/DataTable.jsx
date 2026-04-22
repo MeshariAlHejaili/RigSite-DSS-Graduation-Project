@@ -14,9 +14,9 @@ const STATE_CHIP_CLASSES = {
 
 const COLUMNS = [
   { key: 'time', label: 'Time', numeric: false },
-  { key: 'pressure1', label: 'P1 (psi)', numeric: true },
-  { key: 'pressure2', label: 'P2 (psi)', numeric: true },
-  { key: 'pressure_diff', label: 'Delta P (psi)', numeric: true },
+  { key: 'pressure1', label: 'P1 (psi)', numeric: true, decimals: 3 },
+  { key: 'pressure2', label: 'P2 (psi)', numeric: true, decimals: 3 },
+  { key: 'pressure_diff', label: 'Delta P (psi)', numeric: true, decimals: 3 },
   { key: 'flow', label: 'Flow (L/min)', numeric: true },
   { key: 'expected_flow', label: 'Expected Flow (L/min)', numeric: true },
   { key: 'flow_deviation_pct', label: 'Deviation (%)', numeric: true },
@@ -33,8 +33,8 @@ const COLUMNS = [
   { key: 'sensor_status', label: 'Sensor Status', numeric: false },
 ]
 
-function formatNumber(value, fallback = '--') {
-  return value == null ? fallback : Number(value).toFixed(2)
+function formatNumber(value, fallback = '--', decimals = 2) {
+  return value == null ? fallback : Number(value).toFixed(decimals)
 }
 
 function formatTime(row) {
@@ -69,10 +69,10 @@ function getCellValue(row, column) {
   }
 
   if (column.placeholder) {
-    return formatNumber(row[column.key], '-')
+    return formatNumber(row[column.key], '-', column.decimals ?? 2)
   }
 
-  return formatNumber(row[column.key])
+  return formatNumber(row[column.key], '--', column.decimals ?? 2)
 }
 
 export default function DataTable({

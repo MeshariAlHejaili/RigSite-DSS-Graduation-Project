@@ -5,7 +5,8 @@
       "Bash(node -e ' *)",
       "Bash(python -m py_compile core/schemas.py core/classifier.py core/models.py core/interfaces.py core/pipeline.py core/event_bus.py core/simulator_scenarios.py core/anomaly_engine.py core/detection_engine.py core/subscribers.py core/sensor_processor.py core/simulator.py core/data_sources.py utils/engineering.py utils/config.py utils/database.py main.py routers/websocket.py routers/history.py routers/config.py routers/reports.py routers/simulator.py routers/angle.py)",
       "WebSearch",
-      "Bash(xargs wc *)"
+      "Bash(xargs wc *)",
+      "Bash(xargs grep *)"
     ]
   }
 }
